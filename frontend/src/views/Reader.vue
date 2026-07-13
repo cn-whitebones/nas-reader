@@ -153,7 +153,7 @@ function saveProgress(location?: string, percentOverride?: number) {
 </script>
 
 <style scoped>
-.reader-page { display: flex; flex-direction: column; height: calc(100vh - 60px); }
+.reader-page { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 .theme-light { background: #fff; }
 .theme-sepia { background: #f5ecd9; }
 .theme-dark { background: #1a1a1a; }

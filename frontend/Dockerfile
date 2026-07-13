@@ -1,7 +1,9 @@
 # 构建阶段
 FROM node:20-alpine AS build
 WORKDIR /app
-COPY package.json ./
+# npm 换淘宝镜像源
+RUN npm config set registry https://registry.npmmirror.com
+COPY package.json package-lock.json* ./
 RUN npm install
 COPY . .
 RUN npm run build

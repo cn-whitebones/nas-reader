@@ -17,17 +17,20 @@
         </template>
       </el-dropdown>
     </el-header>
-    <el-main class="main"><router-view /></el-main>
+    <el-main class="main" :class="{ 'reader-mode': isReader }"><router-view /></el-main>
   </el-container>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { ArrowDown } from '@element-plus/icons-vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
+const isReader = computed(() => route.name === 'reader')
 
 function onCommand(cmd: string) {
   if (cmd === 'logout') {
@@ -44,6 +47,8 @@ function onCommand(cmd: string) {
 .nav { flex: 1; border-bottom: none; }
 .user { cursor: pointer; display: flex; align-items: center; gap: 4px; }
 .main { background: #f5f7fa; }
+/* 阅读器模式:去掉 el-main 默认内边距与滚动,交给阅读器内部自行滚动 */
+.reader-mode { padding: 0; overflow: hidden; }
 /* 移动端:导航项紧凑 */
 @media (max-width: 600px) {
   .logo { font-size: 14px; }
