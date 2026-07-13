@@ -7,10 +7,11 @@ from pathlib import Path
 
 from app.services.parsers.base import BaseParser, ParsedBook, ParsedChapter
 
-# 常见章节标题: 第X章 / 第X节 / Chapter X / 序言 / 楔子 / 卷 / 部
+# 常见章节标题: 第X章 / 第X节 / Chapter X / 序言 / 楔子 / 卷 / 部 / (一)(二) / 纯数字编号
 _CHAPTER_RE = re.compile(
     r"^\s*(?:第\s*[0-9零一二三四五六七八九十百千两]+\s*[章节回卷篇部集]"
     r"|Chapter\s+\d+"
+    r"|[（(]\s*[0-9零一二三四五六七八九十百千两]{1,8}\s*[)）]"  # (一) (二) (1) (2)
     r"|楔子|序章|序言|前言|引子|尾声|后记|番外|附录)"
     r".{0,40}$",
     re.IGNORECASE,
@@ -18,14 +19,28 @@ _CHAPTER_RE = re.compile(
 _MAX_TITLE_LEN = 60
 _FALLBACK_CHUNK = 5000  # 无章节时按此字符数分块
 
+# 编码尝试顺序:utf-8(含BOM)→ gb18030(GBK/GB2312超集,覆盖简体中文旧书)→ big5(繁体)
+_ENCODINGS = ("utf-8-sig", "gb18030", "big5")
+
 
 @lru_cache(maxsize=8)
 def _read_text(file_path: str) -> str:
-    """读取整篇文本(带小缓存,避免同一文件反复读盘)。"""
+    """读取整篇文本并自动探测编码(带小缓存,避免同一文件反复读盘)。
+
+    中文 txt 常见 GBK/GB2312 编码,不能写死 utf-8 否则整篇乱码。
+    依次严格尝试各编码,首个成功者胜;全失败时用 utf-8 容错模式兜底。
+    """
     try:
-        return Path(file_path).read_text(encoding="utf-8", errors="replace")
+        raw = Path(file_path).read_bytes()
     except Exception:
         return ""
+    for enc in _ENCODINGS:
+        try:
+            return raw.decode(enc)
+        except (UnicodeDecodeError, LookupError):
+            continue
+    # 全部失败:utf-8 容错,至少不崩
+    return raw.decode("utf-8", errors="replace")
 
 
 class TxtParser(BaseParser):

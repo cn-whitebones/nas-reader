@@ -53,7 +53,8 @@ export const sourcesApi = {
   create: (data: Partial<Source>) => http.post<Source>('/sources', data),
   update: (id: string, data: Partial<Source>) => http.patch<Source>(`/sources/${id}`, data),
   remove: (id: string) => http.delete(`/sources/${id}`),
-  scan: (id: string) => http.post<ScanTask>(`/sources/${id}/scan`),
+  scan: (id: string, force = false) =>
+    http.post<ScanTask>(`/sources/${id}/scan`, null, { params: { force } }),
   scanTask: (taskId: string) => http.get<ScanTask>(`/scan-tasks/${taskId}`),
 }
 

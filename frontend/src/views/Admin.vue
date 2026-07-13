@@ -14,9 +14,10 @@
           <el-table-column label="自动扫描" width="90">
             <template #default="{ row }">{{ row.auto_scan ? `每${row.scan_interval_minutes}分` : '否' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="240">
+          <el-table-column label="操作" width="320">
             <template #default="{ row }">
               <el-button size="small" :loading="scanning[row.id]" @click="scan(row)">扫描</el-button>
+              <el-button size="small" :loading="scanning[row.id]" @click="scan(row, true)">重新解析</el-button>
               <el-button size="small" @click="openSourceDialog(row)">编辑</el-button>
               <el-button size="small" type="danger" @click="removeSource(row)">删除</el-button>
             </template>
@@ -167,11 +168,11 @@ async function saveSource() {
   }
 }
 
-async function scan(row: Source) {
+async function scan(row: Source, force = false) {
   scanning[row.id] = true
   try {
-    const { data: task } = await sourcesApi.scan(row.id)
-    ElMessage.success('扫描已开始')
+    const { data: task } = await sourcesApi.scan(row.id, force)
+    ElMessage.success(force ? '重新解析已开始' : '扫描已开始')
     poll(task.id, row.id)
   } catch (e: any) {
     scanning[row.id] = false

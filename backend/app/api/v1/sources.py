@@ -71,11 +71,12 @@ async def delete_source(source_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 
 
 @router.post("/sources/{source_id}/scan", response_model=ScanTaskOut, status_code=status.HTTP_202_ACCEPTED)
-async def trigger_scan(source_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def trigger_scan(source_id: uuid.UUID, force: bool = False, db: AsyncSession = Depends(get_db)):
+    """触发扫描。force=true 时强制重新解析所有文件(解析逻辑/编码变更后刷新用)。"""
     source = await db.get(Source, source_id)
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件源不存在")
-    task_id = await enqueue_scan(source_id)
+    task_id = await enqueue_scan(source_id, force)
     task = await db.get(ScanTask, task_id)
     return task
 

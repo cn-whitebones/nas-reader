@@ -17,8 +17,8 @@ from app.services.scanner.scan import run_scan
 scheduler = AsyncIOScheduler()
 
 
-async def enqueue_scan(source_id: uuid.UUID) -> uuid.UUID:
-    """创建扫描任务并调度立即执行,返回 task_id。"""
+async def enqueue_scan(source_id: uuid.UUID, force: bool = False) -> uuid.UUID:
+    """创建扫描任务并调度立即执行,返回 task_id。force 时强制重解析所有文件。"""
     async with AsyncSessionLocal() as db:
         task = ScanTask(source_id=source_id)
         db.add(task)
@@ -26,7 +26,9 @@ async def enqueue_scan(source_id: uuid.UUID) -> uuid.UUID:
         await db.refresh(task)
         task_id = task.id
 
-    scheduler.add_job(run_scan, args=[source_id, task_id], id=f"scan-{task_id}", misfire_grace_time=None)
+    scheduler.add_job(
+        run_scan, args=[source_id, task_id, force], id=f"scan-{task_id}", misfire_grace_time=None
+    )
     return task_id
 
 

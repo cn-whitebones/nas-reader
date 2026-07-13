@@ -23,8 +23,11 @@ from app.services.scanner.covers import save_cover
 from app.services.scanner.fsutil import compute_file_hash
 
 
-async def run_scan(source_id: uuid.UUID, task_id: uuid.UUID) -> None:
-    """执行一次扫描。独立开 session(后台任务,与请求生命周期解耦)。"""
+async def run_scan(source_id: uuid.UUID, task_id: uuid.UUID, force: bool = False) -> None:
+    """执行一次扫描。独立开 session(后台任务,与请求生命周期解耦)。
+
+    force=True 时忽略增量判断,强制重新解析所有文件(用于解析逻辑变更后刷新)。
+    """
     async with AsyncSessionLocal() as db:
         source = await db.get(Source, source_id)
         task = await db.get(ScanTask, task_id)
@@ -35,7 +38,7 @@ async def run_scan(source_id: uuid.UUID, task_id: uuid.UUID) -> None:
         await db.commit()
 
         try:
-            await _scan_source(db, source, task)
+            await _scan_source(db, source, task, force)
             task.status = ScanStatus.done
         except Exception as exc:  # noqa: BLE001
             task.status = ScanStatus.failed
@@ -46,7 +49,7 @@ async def run_scan(source_id: uuid.UUID, task_id: uuid.UUID) -> None:
             await db.commit()
 
 
-async def _scan_source(db: AsyncSession, source: Source, task: ScanTask) -> None:
+async def _scan_source(db: AsyncSession, source: Source, task: ScanTask, force: bool = False) -> None:
     root = source.root_path
     if not os.path.isdir(root):
         raise FileNotFoundError(f"文件源目录不存在: {root}")
@@ -65,7 +68,9 @@ async def _scan_source(db: AsyncSession, source: Source, task: ScanTask) -> None
         rel_path = os.path.relpath(abs_path, root)
         seen.add(rel_path)
         try:
-            changed = await _process_file(db, source, existing.get(rel_path), abs_path, rel_path, task)
+            changed = await _process_file(
+                db, source, existing.get(rel_path), abs_path, rel_path, task, force
+            )
             if changed:
                 await db.commit()
         except Exception:  # noqa: BLE001 单个文件失败不影响整体
@@ -100,6 +105,7 @@ async def _process_file(
     abs_path: str,
     rel_path: str,
     task: ScanTask,
+    force: bool = False,
 ) -> bool:
     """处理单个文件,返回是否有写入。"""
     stat = os.stat(abs_path)
@@ -109,8 +115,8 @@ async def _process_file(
     if fmt is None:
         return False
 
-    # 增量:已存在且大小未变且非 missing → 认为无变化,跳过重解析
-    if book is not None and book.file_size == size and book.status == BookStatus.active:
+    # 增量:已存在且大小未变且非 missing → 认为无变化,跳过重解析(force 时不跳过)
+    if not force and book is not None and book.file_size == size and book.status == BookStatus.active:
         return False
 
     file_hash = compute_file_hash(abs_path, size)
