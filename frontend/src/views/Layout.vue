@@ -1,0 +1,51 @@
+<template>
+  <el-container class="layout">
+    <el-header class="header">
+      <span class="logo">📚 NAS Reader</span>
+      <el-menu mode="horizontal" :router="true" :default-active="$route.path" class="nav">
+        <el-menu-item index="/library">书库</el-menu-item>
+        <el-menu-item index="/shelves">书架</el-menu-item>
+        <el-menu-item index="/search">搜索</el-menu-item>
+        <el-menu-item v-if="auth.isAdmin" index="/admin">管理</el-menu-item>
+      </el-menu>
+      <el-dropdown @command="onCommand">
+        <span class="user">{{ auth.user?.username }} <el-icon><arrow-down /></el-icon></span>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="logout">退出登录</el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+    </el-header>
+    <el-main class="main"><router-view /></el-main>
+  </el-container>
+</template>
+
+<script setup lang="ts">
+import { ArrowDown } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
+const router = useRouter()
+
+function onCommand(cmd: string) {
+  if (cmd === 'logout') {
+    auth.logout()
+    router.push('/login')
+  }
+}
+</script>
+
+<style scoped>
+.layout { height: 100%; }
+.header { display: flex; align-items: center; gap: 16px; border-bottom: 1px solid #eee; }
+.logo { font-weight: 600; white-space: nowrap; }
+.nav { flex: 1; border-bottom: none; }
+.user { cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.main { background: #f5f7fa; }
+/* 移动端:导航项紧凑 */
+@media (max-width: 600px) {
+  .logo { font-size: 14px; }
+}
+</style>

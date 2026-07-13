@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nasreader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nasreader}
+      POSTGRES_DB: ${POSTGRES_DB:-nasreader}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nasreader}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-nasreader}:${POSTGRES_PASSWORD:-nasreader}@postgres:5432/${POSTGRES_DB:-nasreader}
+      JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_IN_PRODUCTION}
+      DATA_ROOT: /data
+      DEBUG: ${DEBUG:-false}
+    volumes:
+      - covers:/app/storage/covers
+      # ↓↓↓ 在此映射你的电子书目录,添加为文件源时使用容器内路径(/data/xxx)
+      - ./data:/data/sample:ro
+      # - /path/to/your/books:/data/book1:ro
+      # - /path/to/your/comics:/data/comic1:ro
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+volumes:
+  pgdata:
+  covers:
