@@ -41,16 +41,19 @@ function onCommand(cmd: string) {
 </script>
 
 <style scoped>
-.layout { height: 100%; }
+.layout { height: 100%; overflow-x: hidden; }
 .header { display: flex; align-items: center; gap: 16px; border-bottom: 1px solid #eee; }
 .logo { font-weight: 600; white-space: nowrap; }
-.nav { flex: 1; border-bottom: none; }
-.user { cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.nav { flex: 1; border-bottom: none; min-width: 0; }
+.user { cursor: pointer; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .main { background: #f5f7fa; }
 /* 阅读器模式:去掉 el-main 默认内边距与滚动,交给阅读器内部自行滚动 */
 .reader-mode { padding: 0; overflow: hidden; }
-/* 移动端:导航项紧凑 */
+/* 移动端:收紧导航,避免横向溢出 */
 @media (max-width: 600px) {
-  .logo { font-size: 14px; }
+  .header { gap: 6px; padding: 0 8px; }
+  .logo { font-size: 13px; }
+  .nav :deep(.el-menu-item) { padding: 0 10px; }
+  .user { font-size: 13px; }
 }
 </style>

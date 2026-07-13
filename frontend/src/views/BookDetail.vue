@@ -45,10 +45,10 @@
     </div>
 
     <!-- 刮削对话框 -->
-    <el-dialog v-model="scrapeDialog" title="刮削元数据" width="640px" top="6vh">
+    <el-dialog v-model="scrapeDialog" title="刮削元数据" :width="dialogWidth" top="6vh">
       <div class="scrape-head">
-        <el-input v-model="scrapeKeyword" placeholder="搜索关键词" style="flex: 1" />
-        <el-select v-model="scrapeProvider" placeholder="自动(多源降级)" clearable style="width: 160px">
+        <el-input v-model="scrapeKeyword" placeholder="搜索关键词" class="kw-input" />
+        <el-select v-model="scrapeProvider" placeholder="自动(多源降级)" clearable class="provider-select">
           <el-option label="豆瓣" value="douban" />
           <el-option label="Google Books" value="google" />
           <el-option label="Open Library" value="openlibrary" />
@@ -93,6 +93,8 @@ const scrapeKeyword = ref('')
 const scrapeProvider = ref<string | undefined>(undefined)
 const candidates = ref<Candidate[]>([])
 const scraping = ref(false)
+// 弹窗宽度:移动端近乎占满屏幕,桌面固定 640px
+const dialogWidth = computed(() => (window.innerWidth < 600 ? '94vw' : '640px'))
 const scrapeSearched = ref(false)
 
 async function load() {
@@ -152,16 +154,22 @@ onMounted(async () => {
 .description { background: #fff; padding: 24px; border-radius: 8px; margin-top: 16px; }
 .description p { color: #606266; line-height: 1.8; white-space: pre-wrap; }
 .scrape-head { display: flex; gap: 10px; margin-bottom: 16px; }
+.kw-input { flex: 1; min-width: 0; }
+.provider-select { width: 160px; }
 .candidates { max-height: 52vh; overflow-y: auto; }
 .candidate { display: flex; gap: 12px; padding: 12px; border-radius: 8px; cursor: pointer; }
 .candidate:hover { background: #f5f7fa; }
 .cand-cover { width: 60px; height: 84px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
-.cand-title { font-weight: 600; }
-.cand-sub { font-size: 13px; color: #909399; margin: 4px 0; }
+.cand-info { min-width: 0; flex: 1; }
+.cand-title { font-weight: 600; overflow-wrap: anywhere; }
+.cand-sub { font-size: 13px; color: #909399; margin: 4px 0; overflow-wrap: anywhere; }
 .cand-desc { font-size: 12px; color: #b0b3b8; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 @media (max-width: 600px) {
   .hero { flex-direction: column; align-items: center; }
   .cover { width: 140px; }
+  /* 搜索栏纵向堆叠,避免横向挤压 */
+  .scrape-head { flex-direction: column; }
+  .provider-select { width: 100%; }
 }
 </style>

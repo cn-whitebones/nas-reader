@@ -242,7 +242,8 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.tab-toolbar { margin-bottom: 16px; display: flex; align-items: center; gap: 12px; }
+.admin { max-width: 100%; overflow-x: hidden; }
+.tab-toolbar { margin-bottom: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .hint { color: #909399; font-size: 13px; }
 .perm-row { padding: 6px 0; }
 .perm-row .path { color: #c0c4cc; font-size: 12px; margin-left: 6px; }
