@@ -1,0 +1,12 @@
+{
+  "name": "NAS Reader",
+  "short_name": "NAS Reader",
+  "description": "电子书管理与阅读",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "lang": "zh-CN"
+}

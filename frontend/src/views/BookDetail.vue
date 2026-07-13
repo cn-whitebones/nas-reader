@@ -22,12 +22,12 @@
         </p>
 
         <div class="actions">
-          <el-button type="primary" size="large" @click="$router.push(`/read/${book.id}`)">
+          <el-button type="primary" size="large" class="act-btn" @click="$router.push(`/read/${book.id}`)">
             {{ book.progress && book.progress.percent > 0 ? '继续阅读' : '开始阅读' }}
           </el-button>
-          <el-button @click="scrapeDialog = true">刮削信息</el-button>
-          <el-dropdown @command="addToShelf" trigger="click">
-            <el-button>收藏到书架 <el-icon><ArrowDown /></el-icon></el-button>
+          <el-button size="large" class="act-btn" @click="scrapeDialog = true">刮削信息</el-button>
+          <el-dropdown class="shelf-dropdown" @command="addToShelf" trigger="click">
+            <el-button size="large" class="act-btn">收藏到书架 <el-icon><ArrowDown /></el-icon></el-button>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item v-for="sh in shelves" :key="sh.id" :command="sh.id">{{ sh.name }}</el-dropdown-item>
@@ -150,7 +150,10 @@ onMounted(async () => {
 .subtitle { color: #909399; margin: 0 0 12px; }
 .line { margin: 6px 0; font-size: 14px; color: #606266; }
 .tags { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
-.actions { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
+.actions { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.act-btn { margin: 0; }
+/* dropdown 触发器本身撑满,使内部按钮与其它按钮同高同宽策略一致 */
+.shelf-dropdown :deep(.el-button) { width: 100%; }
 .description { background: #fff; padding: 24px; border-radius: 8px; margin-top: 16px; }
 .description p { color: #606266; line-height: 1.8; white-space: pre-wrap; }
 .scrape-head { display: flex; gap: 10px; margin-bottom: 16px; }
@@ -171,5 +174,8 @@ onMounted(async () => {
   /* 搜索栏纵向堆叠,避免横向挤压 */
   .scrape-head { flex-direction: column; }
   .provider-select { width: 100%; }
+  /* 操作按钮移动端各占一行,高度一致不尴尬换行 */
+  .actions { flex-direction: column; align-items: stretch; }
+  .shelf-dropdown { width: 100%; }
 }
 </style>

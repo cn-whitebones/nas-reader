@@ -69,5 +69,5 @@ defineExpose({ go })
 <style scoped>
 .pdf-reader { display: flex; flex-direction: column; align-items: center; padding: 16px; background: #525659; min-height: 100%; }
 canvas { max-width: 100%; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4); }
-.pdf-nav { position: sticky; bottom: 0; display: flex; gap: 8px; align-items: center; padding: 10px; background: rgba(0,0,0,0.6); color: #fff; border-radius: 8px; margin-top: 12px; }
+.pdf-nav { position: sticky; bottom: calc(8px + env(safe-area-inset-bottom)); display: flex; gap: 8px; align-items: center; padding: 10px; background: rgba(0,0,0,0.6); color: #fff; border-radius: 8px; margin-top: 12px; }
 </style>

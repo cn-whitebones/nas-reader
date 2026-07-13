@@ -153,15 +153,30 @@ function saveProgress(location?: string, percentOverride?: number) {
 </script>
 
 <style scoped>
-.reader-page { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+/* 用 fixed+inset 直接铺满整个视口,绕开 #app/el-main 的百分比高度传导链,
+   彻底规避 iOS PWA 首帧视口高度算错导致的底部白边。盖住 Layout 顶栏,
+   阅读器自带返回/目录/设置顶栏,不冗余。 */
+.reader-page {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .theme-light { background: #fff; }
 .theme-sepia { background: #f5ecd9; }
 .theme-dark { background: #1a1a1a; }
-.topbar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid rgba(128, 128, 128, 0.2); }
+.topbar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; padding-top: calc(8px + env(safe-area-inset-top)); border-bottom: 1px solid rgba(128, 128, 128, 0.2); }
 .topbar .title { flex: 1; text-align: center; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .actions { display: flex; gap: 4px; }
-.body { flex: 1; overflow-y: auto; }
-.chapter-nav { display: flex; gap: 12px; align-items: center; justify-content: center; padding: 10px; border-top: 1px solid rgba(128, 128, 128, 0.2); }
+.body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.chapter-nav { display: flex; gap: 12px; align-items: center; justify-content: center; padding: 8px 10px; padding-bottom: calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(128, 128, 128, 0.15); }
+/* 底部工具栏按主题配色,连同安全区形成整体,不再是突兀白带 */
+.theme-light .chapter-nav { background: #f7f7f7; }
+.theme-sepia .chapter-nav { background: #efe4cc; }
+.theme-dark .chapter-nav { background: #262626; }
+.theme-dark .chapter-nav span { color: #c8c8c8; }
 .toc-item { padding: 10px 12px; cursor: pointer; border-radius: 6px; font-size: 14px; }
 .toc-item:hover { background: #f0f0f0; }
 .toc-item.active { color: var(--el-color-primary); font-weight: 600; }
