@@ -131,14 +131,13 @@ function saveProgress(location?: string, percentOverride?: number) {
     let percent = percentOverride ?? 0
     let loc = location ?? ''
     if (book.value!.format !== 'pdf') {
-      // 用章节进度 + 滚动比例估算百分比
+      // 进度 = (已读完章节数 + 当前章完成度) / 总章数
+      // 当前章完成度:可滚动时取滚动比例;内容不满屏(无法滚动)时视为已读完(1)
       const el = bodyEl.value
-      const scrollRatio =
-        el && el.scrollHeight > el.clientHeight
-          ? el.scrollTop / (el.scrollHeight - el.clientHeight)
-          : 0
+      const canScroll = !!el && el.scrollHeight > el.clientHeight
+      const chapterDone = canScroll ? el!.scrollTop / (el!.scrollHeight - el!.clientHeight) : 1
       const total = chapters.value.length || 1
-      percent = ((curChapter.value + scrollRatio) / total) * 100
+      percent = ((curChapter.value + chapterDone) / total) * 100
       loc = String(curChapter.value)
     }
     booksApi
