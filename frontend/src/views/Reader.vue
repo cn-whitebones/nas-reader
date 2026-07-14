@@ -31,7 +31,7 @@
             <img
               ref="comicImgRef"
               :src="comicImgSrc"
-              :class="{ 'rotate-90': comicRotate90 }"
+              :class="{ 'rotate-90': comicRotate90, loaded: comicImgLoaded }"
               @load="onComicImgLoad"
               @error="onComicImgError"
             />
@@ -151,11 +151,13 @@ const comicImgSrc = computed(() => {
 
 function onComicImgLoad(e: Event) {
   const img = e.target as HTMLImageElement
-  comicImgLoaded.value = true
-  // 横图(w > h)自动旋转90度
-  if (img.naturalWidth > img.naturalHeight) {
-    comicRotate90.value = true
+  // 仅在本书第一张图时自动判断方向,后续页面完全沿用(包括用户手动切换后的方向)
+  // 这样整本书阅读方向统一,不会翻页时方向跳变
+  if (curChapter.value === 0 && !comicImgLoaded.value) {
+    comicRotate90.value = img.naturalWidth > img.naturalHeight
   }
+  // 方向已确定后再显示图片,避免"先竖后横"的闪烁感
+  comicImgLoaded.value = true
 }
 function onComicImgError() {
   comicImgLoaded.value = true
@@ -164,10 +166,9 @@ function toggleComicRotate() {
   comicRotate90.value = !comicRotate90.value
 }
 
-// 切换章节时重置旋转和加载状态
+// 切换章节时只重置加载状态,不重置旋转(整本书统一方向)
 watch(curChapter, () => {
   if (isComic.value) {
-    comicRotate90.value = false
     comicImgLoaded.value = false
   }
 })
@@ -301,9 +302,15 @@ function prevPageOrChapter() {
 
 function onTapZoneClick(e: MouseEvent) {
   const z = (e.target as HTMLElement)?.dataset?.zone
-  if (z === 'left') { prevPageOrChapter(); showChrome.value = false }
-  else if (z === 'right') { nextPageOrChapter(); showChrome.value = false }
-  else if (z === 'center') toggleChrome()
+  // 漫画旋转90度后,左右点击区逻辑互换(顺时针旋转后,原右侧变成下方)
+  let realZone = z
+  if (isComic.value && comicRotate90.value) {
+    if (z === 'left') realZone = 'right'
+    else if (z === 'right') realZone = 'left'
+  }
+  if (realZone === 'left') { prevPageOrChapter(); showChrome.value = false }
+  else if (realZone === 'right') { nextPageOrChapter(); showChrome.value = false }
+  else if (realZone === 'center') toggleChrome()
 }
 
 // —— 键盘(PC)——
@@ -321,8 +328,12 @@ function onTouchStart(e: TouchEvent) {
   touchStartY = e.touches[0].clientY
 }
 function onTouchEnd(e: TouchEvent) {
-  const dx = e.changedTouches[0].clientX - touchStartX
+  let dx = e.changedTouches[0].clientX - touchStartX
   const dy = e.changedTouches[0].clientY - touchStartY
+  // 漫画旋转90度后,左右滑动的方向逻辑反转
+  if (isComic.value && comicRotate90.value) {
+    dx = -dx
+  }
   if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
     if (dx < 0) nextPageOrChapter()
     else prevPageOrChapter()
@@ -431,7 +442,14 @@ function onVisibilityChange() {
   max-width: min(100%, 1000px);  /* 桌面端不过宽 */
   height: auto;
   display: block;
-  transition: transform 0.2s ease;
+  opacity: 0;
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+}
+.comic-page img[src] {
+  /* 有 src 且加载完成时显示 */
+}
+.comic-page img[src].loaded {
+  opacity: 1;
 }
 .theme-dark .comic-page { background: #1a1a1a; }
 .theme-sepia .comic-page { background: #f5ecd9; }
