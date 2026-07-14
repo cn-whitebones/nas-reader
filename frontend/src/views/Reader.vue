@@ -12,6 +12,11 @@
 
     <!-- 正文(始终占满全屏,不受顶/底栏影响) -->
     <div class="body">
+      <!-- 沉浸态浮层:左下章节名 + 右下分页(仅 chrome 隐藏时显示) -->
+      <div v-show="!showChrome && book" class="hud">
+        <span class="hud-chapter">{{ chapterTitle }}</span>
+        <span class="hud-page">{{ curPage + 1 }}/{{ totalPages }}</span>
+      </div>
       <template v-if="book">
         <!-- PDF:保持原生 pdf.js 翻页 -->
         <PdfReader
@@ -107,6 +112,8 @@ const htmlReaderRef = ref<InstanceType<typeof HtmlReader>>()
 
 const fileUrl = computed(() => booksApi.fileUrl(bookId))
 const drawerSize = computed(() => (window.innerWidth < 600 ? '80%' : 320))
+// HUD 显示:章节名(PDF 时为书名),分页(统一 1-based)
+const chapterTitle = computed(() => chapters.value[curChapter.value]?.title || book.value?.title || book.value?.file_name || '')
 
 // 跨章节翻页时,新章节分页完成后要跳到的位置:'last' = 末页
 let pendingGoLast = false
@@ -229,6 +236,8 @@ function onTouchEnd(e: TouchEvent) {
 
 // —— PDF 进度 ——
 function onPdfPage(page: number, total: number) {
+  curPage.value = page - 1  // 1-based → 0-based
+  totalPages.value = total
   saveProgress(String(page), total > 0 ? (page / total) * 100 : 0)
 }
 
@@ -280,7 +289,43 @@ function saveProgress(location: string, percentOverride?: number) {
 /* 正文始终占满全屏(顶/底栏浮在上面,不影响布局) */
 .body { position: absolute; inset: 0; overflow: hidden; }
 
-/* 点击翻页区域覆盖层 */
+/* 沉浸态 HUD:左下章节名 + 右下分页 */
+.hud {
+  position: absolute;
+  inset: 0;
+  z-index: 5;  /* 高于正文,低于顶/底栏(20)和点击层(10)——实际在点击层之上避免被拦截 */
+  pointer-events: none;
+  font-size: 12px;
+  color: #909399;
+  transition: opacity 0.25s;
+}
+.hud-chapter {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top));
+  left: 12px;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.6);
+  padding: 4px 10px;
+  border-radius: 10px;
+  backdrop-filter: blur(4px);
+}
+.theme-dark .hud-chapter { background: rgba(0, 0, 0, 0.5); color: #c8c8c8; }
+.hud-page {
+  position: absolute;
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  right: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  padding: 4px 10px;
+  border-radius: 10px;
+  backdrop-filter: blur(4px);
+  font-variant-numeric: tabular-nums;
+}
+.theme-dark .hud-page { background: rgba(0, 0, 0, 0.5); color: #c8c8c8; }
+
+/* 点击翻页区域覆盖层(在 HUD 之上,确保点击翻页能命中) */
 .tap-zones { position: absolute; inset: 0; z-index: 10; display: flex; }
 .tap-zone { height: 100%; }
 .tap-zone.left { width: 30%; }
