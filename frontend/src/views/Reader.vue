@@ -15,17 +15,27 @@
       <!-- 沉浸态浮层:左下章节名 + 右下分页(仅 chrome 隐藏时显示) -->
       <div v-show="!showChrome && book" class="hud">
         <span class="hud-chapter">{{ chapterTitle }}</span>
-        <span class="hud-page">{{ curPage + 1 }}/{{ totalPages }}</span>
+        <span class="hud-page">{{ book?.format === 'comic' ? `第 ${curChapter + 1} 页` : `${curPage + 1}/${totalPages}` }}</span>
       </div>
       <template v-if="book">
         <!-- PDF:保持原生 pdf.js 翻页 -->
         <PdfReader
-          v-if="book.format === 'pdf'"
+          v-if="book?.format === 'pdf'"
           :file-url="fileUrl"
           :initial-page="Number(initialLocation) || 1"
           @page-change="onPdfPage"
         />
-        <!-- txt/epub:多列分页翻页 -->
+        <!-- 漫画:单图显示,不需要多列分页,翻页直接切章 -->
+        <template v-else-if="book?.format === 'comic'">
+          <div class="comic-page" v-html="chapterHtml"></div>
+          <!-- 点击翻页区域:左/右翻页,中间切换工具栏 -->
+          <div class="tap-zones" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd" @click="onTapZoneClick">
+            <div class="tap-zone left" data-zone="left"></div>
+            <div class="tap-zone center" data-zone="center"></div>
+            <div class="tap-zone right" data-zone="right"></div>
+          </div>
+        </template>
+        <!-- txt/epub/mobi:多列分页翻页 -->
         <template v-else>
           <HtmlReader
             ref="htmlReaderRef"
@@ -46,10 +56,10 @@
     </div>
 
     <!-- 底栏:进度信息(非 pdf,始终占位) -->
-    <div v-if="book && book.format !== 'pdf'" class="footbar">
-      <el-button size="small" text :disabled="curChapter <= 0 && htmlFirstPage" @click="prevPageOrChapter">上一页</el-button>
-      <span class="progress">{{ chapters[curChapter]?.title || `第 ${curChapter + 1} 章` }} · {{ curPage + 1 }}/{{ totalPages }}</span>
-      <el-button size="small" text :disabled="curChapter >= chapters.length - 1 && htmlLastPage" @click="nextPageOrChapter">下一页</el-button>
+    <div v-if="book && book?.format !== 'pdf'" class="footbar">
+      <el-button size="small" text :disabled="isFirstPage" @click="prevPageOrChapter">上一页</el-button>
+      <span class="progress">{{ footbarText }}</span>
+      <el-button size="small" text :disabled="isLastPage" @click="nextPageOrChapter">下一页</el-button>
     </div>
 
     <!-- 目录抽屉 -->
@@ -115,6 +125,21 @@ const drawerSize = computed(() => (window.innerWidth < 600 ? '80%' : 320))
 // HUD 显示:章节名(PDF 时为书名),分页(统一 1-based)
 const chapterTitle = computed(() => chapters.value[curChapter.value]?.title || book.value?.title || book.value?.file_name || '')
 
+// 漫画:一页一章,不需要 HtmlReader 内分页
+const isComic = computed(() => (book.value?.format ?? '') === 'comic')
+const isFirstPage = computed(() => {
+  if (isComic.value) return curChapter.value <= 0
+  return curChapter.value <= 0 && htmlFirstPage.value
+})
+const isLastPage = computed(() => {
+  if (isComic.value) return curChapter.value >= chapters.value.length - 1
+  return curChapter.value >= chapters.value.length - 1 && htmlLastPage.value
+})
+const footbarText = computed(() => {
+  if (isComic.value) return `${chapters.value[curChapter.value]?.title || `第 ${curChapter.value + 1} 页`} · ${curChapter.value + 1}/${chapters.value.length}`
+  return `${chapters.value[curChapter.value]?.title || `第 ${curChapter.value + 1} 章`} · ${curPage.value + 1}/${totalPages.value}`
+})
+
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
@@ -151,15 +176,21 @@ onBeforeUnmount(() => {
 
 async function loadChapter(idx: number, goLast = false) {
   if (idx < 0 || idx >= chapters.value.length) return
-  // 通知阅读器切换方向与目标页,让新章节按翻页方向做进入动画
-  if (idx > curChapter.value) {
-    htmlReaderRef.value?.prepareChapterTransition('next', 'first')
-  } else if (idx < curChapter.value) {
-    htmlReaderRef.value?.prepareChapterTransition('prev', goLast ? 'last' : 'first')
+  // 通知阅读器切换方向与目标页,让新章节按翻页方向做进入动画(漫画不需要)
+  if (!isComic.value) {
+    if (idx > curChapter.value) {
+      htmlReaderRef.value?.prepareChapterTransition('next', 'first')
+    } else if (idx < curChapter.value) {
+      htmlReaderRef.value?.prepareChapterTransition('prev', goLast ? 'last' : 'first')
+    }
   }
   curChapter.value = idx
   const { data } = await booksApi.content(bookId, idx)
   chapterHtml.value = data.html
+  // 漫画:一页一章,手动保存进度;文本/PDF 靠 HtmlReader 事件触发
+  if (isComic.value) {
+    saveProgress(chapters.value[idx]?.location || String(idx))
+  }
   // html 变化会触发 HtmlReader 重新分页并按目标页/initialCharOffset 定位
 }
 
@@ -189,6 +220,13 @@ function updatePageFlags() {
 
 // —— 翻页(含跨章节)——
 function nextPageOrChapter() {
+  // 漫画:一页一章,直接切下一章
+  if (isComic.value) {
+    if (curChapter.value < chapters.value.length - 1) {
+      loadChapter(curChapter.value + 1, false)
+    }
+    return
+  }
   const r = htmlReaderRef.value
   if (!r) return
   if (r.nextPage()) return
@@ -199,6 +237,13 @@ function nextPageOrChapter() {
   }
 }
 function prevPageOrChapter() {
+  // 漫画:一页一章,直接切上一章
+  if (isComic.value) {
+    if (curChapter.value > 0) {
+      loadChapter(curChapter.value - 1, true)
+    }
+    return
+  }
   const r = htmlReaderRef.value
   if (!r) return
   if (r.prevPage()) return
@@ -270,7 +315,11 @@ function commitProgress() {
   let percent = pendingPercentOverride ?? 0
   pendingLocation = null
   pendingPercentOverride = undefined
-  if (book.value.format !== 'pdf') {
+  if (book.value.format === 'comic') {
+    // 漫画:一页一章,进度 = (当前章节+1)/总章节
+    const total = chapters.value.length || 1
+    percent = ((curChapter.value + 1) / total) * 100
+  } else if (book.value.format !== 'pdf') {
     const total = chapters.value.length || 1
     const pageFrac = totalPages.value > 0 ? (curPage.value + 1) / totalPages.value : 0
     percent = ((curChapter.value + pageFrac) / total) * 100
@@ -316,6 +365,29 @@ function onVisibilityChange() {
 
 /* 正文始终占满全屏(顶/底栏浮在上面,不影响布局) */
 .body { position: absolute; inset: 0; overflow: hidden; }
+
+/* 漫画页面:垂直滚动,图片宽度自适应,上下居中 */
+.comic-page {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 20px 0;
+  padding-top: calc(20px + env(safe-area-inset-top));
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+.comic-page img {
+  max-width: 100%;
+  max-width: min(100%, 1000px);  /* 桌面端不过宽 */
+  height: auto;
+  display: block;
+}
+.theme-dark .comic-page { background: #1a1a1a; }
+.theme-sepia .comic-page { background: #f5ecd9; }
 
 /* 沉浸态 HUD:左下章节名 + 右下分页 */
 .hud {

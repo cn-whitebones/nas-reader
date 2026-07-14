@@ -6,12 +6,14 @@ from __future__ import annotations
 
 from app.models.book import BookFormat
 from app.services.parsers.base import BaseParser
+from app.services.parsers.comic import ComicParser
 from app.services.parsers.epub import EpubParser
+from app.services.parsers.mobi import MobiParser
 from app.services.parsers.pdf import PdfParser
 from app.services.parsers.txt import TxtParser
 
-# 扩展名(小写,不含点)→ 解析器实例
-_PARSERS: list[BaseParser] = [TxtParser(), EpubParser(), PdfParser()]
+# 扩展名(小写,不含点)→ 解析器实例。顺序不重要,按扩展名分发
+_PARSERS: list[BaseParser] = [TxtParser(), EpubParser(), PdfParser(), MobiParser(), ComicParser()]
 
 _BY_EXT: dict[str, BaseParser] = {}
 for _p in _PARSERS:
@@ -24,6 +26,15 @@ _EXT_TO_FORMAT: dict[str, BookFormat] = {
     "text": BookFormat.txt,
     "epub": BookFormat.epub,
     "pdf": BookFormat.pdf,
+    "mobi": BookFormat.mobi,
+    "azw": BookFormat.mobi,
+    "azw3": BookFormat.mobi,
+    "zip": BookFormat.comic,
+    "cbz": BookFormat.comic,
+    "rar": BookFormat.comic,
+    "cbr": BookFormat.comic,
+    "7z": BookFormat.comic,
+    "cb7": BookFormat.comic,
 }
 
 SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(_BY_EXT.keys())

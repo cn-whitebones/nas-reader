@@ -23,6 +23,7 @@ dependencies = [
     "apscheduler>=3.10",
     "xxhash>=3.4",
     "pillow>=10.3",
+    "mobi>=0.3",  # MOBI 格式解析
 ]
 
 [project.optional-dependencies]
