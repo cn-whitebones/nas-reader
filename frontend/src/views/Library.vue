@@ -27,11 +27,23 @@
           <el-option label="TXT" value="txt" />
           <el-option label="EPUB" value="epub" />
           <el-option label="PDF" value="pdf" />
+          <el-option label="MOBI" value="mobi" />
+          <el-option label="漫画" value="comic" />
         </el-select>
         <span class="path">{{ curDir || '全部' }}</span>
+        <span class="spacer"></span>
+        <el-radio-group v-model="viewMode" size="small">
+          <el-radio-button value="grid">
+            <el-icon><Grid /></el-icon>
+          </el-radio-button>
+          <el-radio-button value="list">
+            <el-icon><List /></el-icon>
+          </el-radio-button>
+        </el-radio-group>
       </div>
 
-      <BookGrid :books="books" />
+      <BookGrid v-if="viewMode === 'grid'" :books="books" />
+      <BookList v-else :books="books" />
 
       <el-pagination
         v-if="total > size"
@@ -47,8 +59,10 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
+import { Grid, List } from '@element-plus/icons-vue'
 import BookGrid from '@/components/BookGrid.vue'
+import BookList from '@/components/BookList.vue'
 import { booksApi, type BookBrief, type TreeNode } from '@/api/books'
 
 const treeData = ref<any[]>([])
@@ -60,6 +74,10 @@ const curDir = ref<string | undefined>(undefined)
 const curSource = ref<string | undefined>(undefined)
 const formatFilter = ref<string | undefined>(undefined)
 const mobileTreeOpen = ref(false)
+const viewMode = ref<'grid' | 'list'>(
+  (localStorage.getItem('library_view_mode') as 'grid' | 'list') || 'grid'
+)
+watch(viewMode, (v) => localStorage.setItem('library_view_mode', v))
 
 function decorate(nodes: TreeNode[]): any[] {
   return nodes.map((n) => ({
@@ -114,7 +132,10 @@ onMounted(async () => {
 .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .tree-toggle { display: none; }
 .path { color: #909399; font-size: 13px; }
+.spacer { flex: 1; }
 .pager { margin-top: 20px; justify-content: center; }
+/* 解决最底部卡片被切掉的问题 */
+.content { overflow-y: auto; padding-bottom: 40px; }
 
 @media (max-width: 700px) {
   .sidebar {
