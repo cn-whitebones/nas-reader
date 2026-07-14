@@ -128,4 +128,4 @@ class ComicParser(BaseParser):
         b64 = base64.b64encode(raw).decode("ascii")
 
         # 居中显示,max-width 限制宽度,height auto 保持比例
-        return f'<div style="text-align:center"><img style="max-width:100%;height:auto;display:block;margin:0 auto" src="{mime};base64,{b64}" alt="{Path(chapter.location).name}" /></div>'
+        return f'<div style="text-align:center"><img style="max-width:100%;height:auto;display:block;margin:0 auto" src="data:{mime};base64,{b64}" alt="{Path(chapter.location).name}" /></div>'

@@ -20,6 +20,10 @@ for _p in _PARSERS:
     for _ext in _p.extensions:
         _BY_EXT[_ext] = _p
 
+# 额外添加 format → parser 映射,方便 get_parser(BookFormat.comic.value) 能直接命中
+_BY_EXT["comic"] = ComicParser()
+_BY_EXT["mobi"] = MobiParser()
+
 # 扩展名 → 数据库枚举 BookFormat
 _EXT_TO_FORMAT: dict[str, BookFormat] = {
     "txt": BookFormat.txt,

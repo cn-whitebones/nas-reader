@@ -1,9 +1,11 @@
 """MOBI 格式解析器:用 mobi 库提取目录、封面和内容。
 
 MOBI 内部是 Palm DB 格式,章节按偏移定位,和 txt 类似。
+注意:KF8(Kindle Format 8) 解压后会得到 epub 文件,需委托 EpubParser。
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from app.services.parsers.base import BaseParser, ParsedBook, ParsedChapter
@@ -12,6 +14,16 @@ from app.services.parsers.base import BaseParser, ParsedBook, ParsedChapter
 class MobiParser(BaseParser):
     extensions = ("mobi", "azw", "azw3")
 
+    def __init__(self):
+        # KF8 格式解压后得到 epub,委托 EpubParser
+        self._epub_parser = None
+
+    def _get_epub_parser(self):
+        if self._epub_parser is None:
+            from app.services.parsers.epub import EpubParser
+            self._epub_parser = EpubParser()
+        return self._epub_parser
+
     def parse(self, file_path: str) -> ParsedBook:
         try:
             import mobi
@@ -19,11 +31,15 @@ class MobiParser(BaseParser):
             return ParsedBook()
 
         try:
-            # mobi.extract 返回 (headers, html_path)
-            headers, _ = mobi.extract(file_path)
+            headers, output = mobi.extract(file_path)
         except Exception:
             return ParsedBook()
 
+        # KF8 格式: mobi.extract 直接返回 epub 文件路径,直接走 EpubParser
+        if output.lower().endswith(".epub") and os.path.isfile(output):
+            return self._get_epub_parser().parse(output)
+
+        # 传统 MOBI7 格式:按字符偏移解析
         result = ParsedBook()
 
         # 元数据(从 headers dict 提取)
@@ -36,16 +52,11 @@ class MobiParser(BaseParser):
         except Exception:
             pass
 
-        # 封面:mobi 库提取时可能在输出目录里有 cover.jpg,但 mobi.extract 本身
-        # 不直接返回字节,后续可扩展(临时目录找 cover)。暂不提取封面。
-
         # 章节:mobi 目录结构在 headers.get("toc", []),每项含 (title, offset)
-        # 注意:不同 mobi 版本的 TOC 格式可能不同,兼容失败时退化为不分章
         try:
             toc = headers.get("toc", [])
             chapters: list[ParsedChapter] = []
             for entry in toc:
-                # entry 可能是 dict 或 tuple,兼容常见格式
                 if isinstance(entry, dict):
                     title = str(entry.get("title", "") or "")
                     offset = entry.get("offset", 0)
@@ -66,7 +77,7 @@ class MobiParser(BaseParser):
         except Exception:
             pass
 
-        # TOC 无效或为空 → 退化为单章整本书
+        # TOC 无效 → 单章
         if not result.chapters:
             result.chapters = [ParsedChapter(idx=0, title="全文", location="0")]
 
@@ -75,23 +86,40 @@ class MobiParser(BaseParser):
     def read_chapter(
         self, file_path: str, chapter: ParsedChapter, next_location: str | None = None
     ) -> str:
-        """读取章节内容:mobi 文本按字符偏移分段。
-
-        注意:mobi.extract 会把整本书转成单个 HTML,chapter.location 是字符偏移。
-        """
         try:
             import mobi
         except Exception:
             return ""
 
         try:
-            _, html_path = mobi.extract(file_path)
-            with open(html_path, "r", encoding="utf-8", errors="replace") as f:
+            headers, output = mobi.extract(file_path)
+        except Exception:
+            return ""
+
+        # KF8 格式: output 本身就是 epub 文件路径
+        if output.lower().endswith(".epub") and os.path.isfile(output):
+            return self._get_epub_parser().read_chapter(output, chapter, next_location)
+
+        # 传统 MOBI7: output 是目录,读其中的 html 文件
+        if not os.path.isdir(output):
+            return ""
+        html_file = os.path.join(output, "book.html")
+        if not os.path.exists(html_file):
+            # mobi 库可能用其他文件名,找一下
+            for name in os.listdir(output):
+                if name.lower().endswith(".html") or name.lower().endswith(".htm"):
+                    html_file = os.path.join(output, name)
+                    break
+            else:
+                return ""
+
+        try:
+            with open(html_file, "r", encoding="utf-8", errors="replace") as f:
                 text = f.read()
         except Exception:
             return ""
 
-        # 解析偏移
+        # 按偏移截取
         try:
             start = int(chapter.location) if chapter.location.lstrip("-").isdigit() else 0
             end = int(next_location) if next_location and next_location.lstrip("-").isdigit() else len(text)
@@ -102,5 +130,4 @@ class MobiParser(BaseParser):
         start = max(0, min(start, len(text)))
         end = max(start, min(end, len(text)))
 
-        # 直接返回 HTML(已经是 mobi 转出来的 XHTML)
         return text[start:end]
