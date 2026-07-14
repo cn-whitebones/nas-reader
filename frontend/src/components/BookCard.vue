@@ -1,7 +1,7 @@
 <template>
   <div class="book-card" @click="$router.push(`/books/${book.id}`)">
     <div class="cover">
-      <img v-if="book.has_cover" :src="coverUrl" :alt="displayTitle" loading="lazy" />
+      <CoverImage v-if="book.has_cover" :book-id="book.id" :alt="displayTitle" />
       <div v-else class="no-cover">{{ formatLabel }}</div>
       <span class="badge">{{ book.format.toUpperCase() }}</span>
     </div>
@@ -14,10 +14,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { booksApi, type BookBrief } from '@/api/books'
+import { type BookBrief } from '@/api/books'
+import CoverImage from './CoverImage.vue'
 
 const props = defineProps<{ book: BookBrief }>()
-const coverUrl = computed(() => booksApi.coverUrl(props.book.id))
 const displayTitle = computed(() => props.book.title || props.book.file_name)
 const formatLabel = computed(() => props.book.format.toUpperCase())
 </script>

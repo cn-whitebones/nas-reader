@@ -2,7 +2,7 @@
   <div v-if="book" class="detail">
     <div class="hero">
       <div class="cover">
-        <img v-if="book.has_cover" :src="coverUrl" :alt="title" />
+        <CoverImage v-if="book.has_cover" :book-id="bookId" :alt="title" />
         <div v-else class="no-cover">{{ book.format.toUpperCase() }}</div>
       </div>
       <div class="info">
@@ -78,6 +78,7 @@ import { ElMessage } from 'element-plus'
 import { booksApi, type BookDetail } from '@/api/books'
 import { shelvesApi, type Shelf } from '@/api/shelves'
 import { scrapeApi, type Candidate } from '@/api/admin'
+import CoverImage from '@/components/CoverImage.vue'
 
 const route = useRoute()
 const bookId = route.params.id as string
@@ -85,7 +86,6 @@ const bookId = route.params.id as string
 const book = ref<BookDetail | null>(null)
 const md = computed(() => book.value?.metadata)
 const title = computed(() => md.value?.title || book.value?.file_name || '')
-const coverUrl = computed(() => booksApi.coverUrl(bookId))
 const shelves = ref<Shelf[]>([])
 
 const scrapeDialog = ref(false)
@@ -170,7 +170,7 @@ onMounted(async () => {
 
 @media (max-width: 600px) {
   .hero { flex-direction: column; align-items: center; }
-  .cover { width: 140px; }
+  .cover { width: 140px; align-self: center; }
   /* 搜索栏纵向堆叠,避免横向挤压 */
   .scrape-head { flex-direction: column; }
   .provider-select { width: 100%; }
