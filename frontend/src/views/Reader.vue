@@ -25,9 +25,20 @@
           :initial-page="Number(initialLocation) || 1"
           @page-change="onPdfPage"
         />
-        <!-- 漫画:单图显示,不需要多列分页,翻页直接切章 -->
+        <!-- 漫画:单图显示,自动检测横图旋转90度 -->
         <template v-else-if="book?.format === 'comic'">
-          <div class="comic-page" v-html="chapterHtml"></div>
+          <div class="comic-page" ref="comicPageRef">
+            <img
+              ref="comicImgRef"
+              :src="comicImgSrc"
+              :class="{ 'rotate-90': comicRotate90 }"
+              @load="onComicImgLoad"
+              @error="onComicImgError"
+            />
+            <div v-if="comicImgLoaded" class="comic-rotate-btn" @click.stop="toggleComicRotate">
+              <el-icon :size="18"><Refresh /></el-icon>
+            </div>
+          </div>
           <!-- 点击翻页区域:左/右翻页,中间切换工具栏 -->
           <div class="tap-zones" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd" @click="onTapZoneClick">
             <div class="tap-zone left" data-zone="left"></div>
@@ -82,9 +93,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Menu, Setting } from '@element-plus/icons-vue'
+import { ArrowLeft, Menu, Setting, Refresh } from '@element-plus/icons-vue'
 import { booksApi, type BookDetail, type Chapter } from '@/api/books'
 import { useReaderStore } from '@/stores/reader'
 import HtmlReader from '@/reader/HtmlReader.vue'
@@ -125,8 +136,42 @@ const drawerSize = computed(() => (window.innerWidth < 600 ? '80%' : 320))
 // HUD 显示:章节名(PDF 时为书名),分页(统一 1-based)
 const chapterTitle = computed(() => chapters.value[curChapter.value]?.title || book.value?.title || book.value?.file_name || '')
 
-// 漫画:一页一章,不需要 HtmlReader 内分页
+// 漫画:一页一章,不需要 HtmlReader 内分页;横图自动旋转90度
 const isComic = computed(() => (book.value?.format ?? '') === 'comic')
+const comicPageRef = ref<HTMLDivElement>()
+const comicImgRef = ref<HTMLImageElement>()
+const comicRotate90 = ref(false)
+const comicImgLoaded = ref(false)
+// 从后端返回的 HTML 中提取 base64 img src
+const comicImgSrc = computed(() => {
+  if (!isComic.value || !chapterHtml.value) return ''
+  const match = chapterHtml.value.match(/src="([^"]+)"/)
+  return match ? match[1] : ''
+})
+
+function onComicImgLoad(e: Event) {
+  const img = e.target as HTMLImageElement
+  comicImgLoaded.value = true
+  // 横图(w > h)自动旋转90度
+  if (img.naturalWidth > img.naturalHeight) {
+    comicRotate90.value = true
+  }
+}
+function onComicImgError() {
+  comicImgLoaded.value = true
+}
+function toggleComicRotate() {
+  comicRotate90.value = !comicRotate90.value
+}
+
+// 切换章节时重置旋转和加载状态
+watch(curChapter, () => {
+  if (isComic.value) {
+    comicRotate90.value = false
+    comicImgLoaded.value = false
+  }
+})
+
 const isFirstPage = computed(() => {
   if (isComic.value) return curChapter.value <= 0
   return curChapter.value <= 0 && htmlFirstPage.value
@@ -366,28 +411,66 @@ function onVisibilityChange() {
 /* 正文始终占满全屏(顶/底栏浮在上面,不影响布局) */
 .body { position: absolute; inset: 0; overflow: hidden; }
 
-/* 漫画页面:垂直滚动,图片宽度自适应,上下居中 */
+/* 漫画页面:垂直滚动,横图自动旋转90度后宽度变为高度,需适配 */
 .comic-page {
   width: 100%;
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   padding: 20px 0;
   padding-top: calc(20px + env(safe-area-inset-top));
   padding-bottom: calc(20px + env(safe-area-inset-bottom));
   box-sizing: border-box;
+  position: relative;
 }
 .comic-page img {
   max-width: 100%;
   max-width: min(100%, 1000px);  /* 桌面端不过宽 */
   height: auto;
   display: block;
+  transition: transform 0.2s ease;
 }
 .theme-dark .comic-page { background: #1a1a1a; }
 .theme-sepia .comic-page { background: #f5ecd9; }
+
+/* 横图旋转90度后,宽高互换:max-width 变成 max-height,占满屏幕高度 */
+.comic-page img.rotate-90 {
+  transform: rotate(90deg);
+  max-width: none;
+  max-height: 100vw;
+  /* 旋转后会偏移,需要用 margin 拉回视口中心 */
+  margin: calc((100vw - 100vh) / 2) 0;
+}
+
+/* 旋转切换按钮:右下角悬浮,半透明 */
+.comic-rotate-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 100px;
+  z-index: 20;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: opacity 0.2s, background 0.2s;
+}
+.comic-rotate-btn:hover {
+  background: rgba(0, 0, 0, 0.55);
+}
+/* 工具栏隐藏时,按钮也一起隐藏 */
+.chrome-hidden .comic-rotate-btn {
+  opacity: 0;
+  pointer-events: none;
+}
 
 /* 沉浸态 HUD:左下章节名 + 右下分页 */
 .hud {
