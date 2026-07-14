@@ -19,6 +19,7 @@ from app.models.reading import ReadingSettings
 from app.models.user import User, UserRole
 from app.schemas.auth import (
     AccessTokenResponse,
+    ChangePasswordRequest,
     RefreshRequest,
     SetupRequest,
     SetupStatus,
@@ -84,3 +85,16 @@ async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)):
 @router.get("/auth/me", response_model=UserOut)
 async def me(user: User = Depends(get_current_user)):
     return user
+
+
+@router.post("/auth/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    payload: ChangePasswordRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """当前登录用户修改自己的密码:先校验旧密码。"""
+    if not verify_password(payload.old_password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="原密码错误")
+    user.password_hash = hash_password(payload.new_password)
+    await db.commit()

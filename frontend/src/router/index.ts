@@ -16,6 +16,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'books/:id', name: 'book-detail', component: () => import('@/views/BookDetail.vue') },
       { path: 'read/:id', name: 'reader', component: () => import('@/views/Reader.vue') },
       { path: 'admin', name: 'admin', component: () => import('@/views/Admin.vue'), meta: { admin: true } },
+      { path: ':pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFound.vue') },
     ],
   },
 ]

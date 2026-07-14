@@ -60,6 +60,13 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class ChangePasswordRequest(BaseModel):
+    """当前用户修改自己的密码,需校验旧密码。"""
+
+    old_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=6, max_length=128)
+
+
 class SetupRequest(BaseModel):
     """首次启动引导:创建首个管理员。"""
 

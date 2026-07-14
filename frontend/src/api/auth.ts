@@ -22,4 +22,6 @@ export const authApi = {
   refresh: (refresh_token: string) =>
     http.post<{ access_token: string }>('/auth/refresh', { refresh_token }),
   me: () => http.get<User>('/auth/me'),
+  changePassword: (old_password: string, new_password: string) =>
+    http.post('/auth/change-password', { old_password, new_password }),
 }
