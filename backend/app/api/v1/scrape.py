@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_current_user
+from app.core.deps import get_current_admin, get_current_user
 from app.db.session import get_db
 from app.models.book import Book, BookMetadata, MetadataProviderName
 from app.models.user import User
@@ -23,9 +23,9 @@ async def scrape_search(
     keyword: str = Query(min_length=1, max_length=200),
     provider: MetadataProviderName | None = None,
     limit: int = Query(5, ge=1, le=10),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(get_current_admin),
 ):
-    """独立搜索候选(不绑定具体图书)。"""
+    """独立搜索候选(不绑定具体图书)。仅管理员可用。"""
     candidates = await search_candidates(keyword, provider, limit)
     return [CandidateOut(**c.__dict__) for c in candidates]
 
@@ -34,10 +34,10 @@ async def scrape_search(
 async def scrape_book(
     book_id: uuid.UUID,
     payload: ScrapeRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """为图书搜索候选。关键词默认取已有标题或文件名(去扩展名)。"""
+    """为图书搜索候选。关键词默认取已有标题或文件名(去扩展名)。仅管理员可用。"""
     book = await _get_readable_book(db, user, book_id)
     keyword = payload.keyword
     if not keyword:
@@ -51,10 +51,10 @@ async def scrape_book(
 async def apply_metadata(
     book_id: uuid.UUID,
     payload: ApplyCandidateRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """把选定候选写入图书元数据(含下载封面)。"""
+    """把选定候选写入图书元数据(含下载封面)。仅管理员可用。"""
     await _get_readable_book(db, user, book_id)
     candidate = MetadataCandidate(**payload.candidate.model_dump())
     md = await apply_candidate(db, book_id, candidate)
@@ -65,10 +65,10 @@ async def apply_metadata(
 async def update_metadata(
     book_id: uuid.UUID,
     payload: MetadataUpdate,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """手动编辑/兜底录入元数据。"""
+    """手动编辑/兜底录入元数据。仅管理员可用。"""
     await _get_readable_book(db, user, book_id)
     md = await db.get(BookMetadata, book_id)
     if md is None:

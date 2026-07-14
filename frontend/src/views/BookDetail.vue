@@ -25,7 +25,7 @@
           <el-button type="primary" size="large" class="act-btn" @click="$router.push(`/read/${book.id}`)">
             {{ book.progress && book.progress.percent > 0 ? '继续阅读' : '开始阅读' }}
           </el-button>
-          <el-button size="large" class="act-btn" @click="scrapeDialog = true">刮削信息</el-button>
+          <el-button size="large" class="act-btn" @click="openScrapeDialog" v-if="isAdmin">刮削信息</el-button>
           <el-button size="large" class="act-btn" :type="inShelf ? 'success' : 'default'" @click="toggleShelf">
             {{ inShelf ? '已收藏' : '收藏到书架' }}
           </el-button>
@@ -39,39 +39,62 @@
     </div>
 
     <!-- 刮削对话框 -->
-    <el-dialog v-model="scrapeDialog" title="刮削元数据" :width="dialogWidth" top="6vh">
-      <div class="scrape-head">
-        <el-input v-model="scrapeKeyword" placeholder="搜索关键词" class="kw-input" />
-        <el-select v-model="scrapeProvider" placeholder="自动(多源降级)" clearable class="provider-select">
-          <el-option label="豆瓣" value="douban" />
-          <el-option label="Google Books" value="google" />
-          <el-option label="Open Library" value="openlibrary" />
-        </el-select>
-        <el-button type="primary" :loading="scraping" @click="runScrape">搜索</el-button>
-      </div>
-      <div class="candidates">
-        <div v-for="(c, i) in candidates" :key="i" class="candidate" @click="applyCandidate(c)">
-          <img v-if="c.cover_url" :src="c.cover_url" class="cand-cover" />
-          <div class="cand-info">
-            <div class="cand-title">{{ c.title }} <el-tag size="small">{{ c.provider }}</el-tag></div>
-            <div class="cand-sub">{{ c.authors.join(', ') }} · {{ c.publisher || '' }} {{ c.pub_date || '' }}</div>
-            <div class="cand-desc">{{ c.description }}</div>
+    <el-dialog v-model="scrapeDialog" title="元数据管理" :width="dialogWidth" top="6vh">
+      <el-tabs v-model="editTab">
+        <el-tab-pane label="刮削搜索" name="scrape">
+          <div class="scrape-head">
+            <el-input v-model="scrapeKeyword" placeholder="搜索关键词" class="kw-input" />
+            <el-select v-model="scrapeProvider" placeholder="自动(多源降级)" clearable class="provider-select">
+              <el-option label="豆瓣" value="douban" />
+              <el-option label="Google Books" value="google" />
+              <el-option label="Open Library" value="openlibrary" />
+            </el-select>
+            <el-button type="primary" :loading="scraping" @click="runScrape">搜索</el-button>
           </div>
-        </div>
-        <el-empty v-if="scrapeSearched && !candidates.length" description="无结果,可换关键词或来源" />
-      </div>
+          <div class="candidates">
+            <div v-for="(c, i) in candidates" :key="i" class="candidate" @click="applyCandidate(c)">
+              <img v-if="c.cover_url" :src="c.cover_url" class="cand-cover" />
+              <div class="cand-info">
+                <div class="cand-title">{{ c.title }} <el-tag size="small">{{ c.provider }}</el-tag></div>
+                <div class="cand-sub">{{ c.authors.join(', ') }} · {{ c.publisher || '' }} {{ c.pub_date || '' }}</div>
+                <div class="cand-desc">{{ c.description }}</div>
+              </div>
+            </div>
+            <el-empty v-if="scrapeSearched && !candidates.length" description="无结果,可换关键词或来源" />
+          </div>
+        </el-tab-pane>
+        <el-tab-pane label="手动编辑" name="manual">
+          <el-form label-width="80px">
+            <el-form-item label="书名"><el-input v-model="manualForm.title" /></el-form-item>
+            <el-form-item label="副标题"><el-input v-model="manualForm.subtitle" /></el-form-item>
+            <el-form-item label="作者"><el-input v-model="manualForm.authors" placeholder="多个作者用逗号分隔" /></el-form-item>
+            <el-form-item label="出版社"><el-input v-model="manualForm.publisher" /></el-form-item>
+            <el-form-item label="出版日期"><el-input v-model="manualForm.pub_date" placeholder="如: 2023-01" /></el-form-item>
+            <el-form-item label="ISBN"><el-input v-model="manualForm.isbn" /></el-form-item>
+            <el-form-item label="标签"><el-input v-model="manualForm.tags" placeholder="多个标签用逗号分隔" /></el-form-item>
+            <el-form-item label="简介"><el-input v-model="manualForm.description" type="textarea" :rows="6" /></el-form-item>
+          </el-form>
+          <div style="text-align: right; margin-top: 16px;">
+            <el-button type="primary" :loading="scraping" @click="saveManualEdit">保存</el-button>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { booksApi, type BookDetail } from '@/api/books'
 import { shelvesApi } from '@/api/shelves'
 import { scrapeApi, type Candidate } from '@/api/admin'
+import { useAuthStore } from '@/stores/auth'
 import CoverImage from '@/components/CoverImage.vue'
+
+const auth = useAuthStore()
+const isAdmin = computed(() => auth.isAdmin)
 
 const route = useRoute()
 const bookId = route.params.id as string
@@ -89,6 +112,66 @@ const scraping = ref(false)
 // 弹窗宽度:移动端近乎占满屏幕,桌面固定 640px
 const dialogWidth = computed(() => (window.innerWidth < 600 ? '94vw' : '640px'))
 const scrapeSearched = ref(false)
+
+// 手动编辑 tab
+const editTab = ref('scrape')  // 'scrape' | 'manual'
+const manualForm = reactive({
+  title: '',
+  subtitle: '',
+  authors: '',
+  publisher: '',
+  pub_date: '',
+  isbn: '',
+  description: '',
+  tags: '',
+})
+
+function openScrapeDialog() {
+  scrapeDialog.value = true
+  editTab.value = 'scrape'
+  // 回填当前元数据到表单
+  if (md.value) {
+    manualForm.title = md.value.title || ''
+    manualForm.subtitle = md.value.subtitle || ''
+    manualForm.authors = (md.value.authors || []).join(', ')
+    manualForm.publisher = md.value.publisher || ''
+    manualForm.pub_date = md.value.pub_date || ''
+    manualForm.isbn = md.value.isbn || ''
+    manualForm.description = md.value.description || ''
+    manualForm.tags = (md.value.tags || []).join(', ')
+  }
+}
+
+async function saveManualEdit() {
+  scraping.value = true
+  try {
+    const tags = manualForm.tags
+      .split(/[,，]/)
+      .map((t) => t.trim())
+      .filter(Boolean)
+    const authors = manualForm.authors
+      .split(/[,，]/)
+      .map((a) => a.trim())
+      .filter(Boolean)
+    await scrapeApi.updateMetadata(bookId, {
+      title: manualForm.title || undefined,
+      subtitle: manualForm.subtitle || undefined,
+      authors: authors.length ? authors : undefined,
+      publisher: manualForm.publisher || undefined,
+      pub_date: manualForm.pub_date || undefined,
+      isbn: manualForm.isbn || undefined,
+      description: manualForm.description || undefined,
+      tags: tags.length ? tags : undefined,
+    })
+    ElMessage.success('已保存')
+    scrapeDialog.value = false
+    await load() // 刷新详情页
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '保存失败')
+  } finally {
+    scraping.value = false
+  }
+}
 
 async function load() {
   const { data } = await booksApi.detail(bookId)
