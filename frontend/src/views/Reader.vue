@@ -136,10 +136,17 @@ onMounted(async () => {
     await loadChapter(curChapter.value)
   }
   window.addEventListener('keydown', onKeydown)
+  // 兜底保存:切后台/锁屏用 visibilitychange,关闭/刷新用 pagehide
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  window.addEventListener('pagehide', commitProgress)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.removeEventListener('pagehide', commitProgress)
+  // 离开阅读页(返回/切路由)时立即写入最新进度
+  commitProgress()
 })
 
 async function loadChapter(idx: number, goLast = false) {
@@ -240,25 +247,48 @@ function onPdfPage(page: number, total: number) {
 }
 
 // —— 进度保存 ——
+// 防抖提交,并记录"最近待保存进度",便于切后台/离开页面时立即兜底提交
+let pendingLocation: string | null = null
+let pendingPercentOverride: number | undefined
+
 function saveProgress(location: string, percentOverride?: number) {
   if (!book.value) return
+  pendingLocation = location
+  pendingPercentOverride = percentOverride
   if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => {
-    let percent = percentOverride ?? 0
-    if (book.value!.format !== 'pdf') {
-      const total = chapters.value.length || 1
-      const pageFrac = totalPages.value > 0 ? (curPage.value + 1) / totalPages.value : 0
-      percent = ((curChapter.value + pageFrac) / total) * 100
-    }
-    booksApi
-      .putProgress(bookId, {
-        location,
-        percent: Math.min(Math.max(percent, 0), 100),
-        chapter_idx: curChapter.value,
-      })
-      .catch(() => {})
-  }, 800)
+  saveTimer = setTimeout(commitProgress, 800)
 }
+
+// 立即把待保存进度写入后端(无防抖);无待存内容则跳过
+function commitProgress() {
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
+  if (!book.value || pendingLocation === null) return
+  const location = pendingLocation
+  let percent = pendingPercentOverride ?? 0
+  pendingLocation = null
+  pendingPercentOverride = undefined
+  if (book.value.format !== 'pdf') {
+    const total = chapters.value.length || 1
+    const pageFrac = totalPages.value > 0 ? (curPage.value + 1) / totalPages.value : 0
+    percent = ((curChapter.value + pageFrac) / total) * 100
+  }
+  booksApi
+    .putProgress(bookId, {
+      location,
+      percent: Math.min(Math.max(percent, 0), 100),
+      chapter_idx: curChapter.value,
+    })
+    .catch(() => {})
+}
+
+// 切后台/锁屏/切标签时立即兜底保存(移动端 beforeunload 不可靠,visibilitychange 才是关键)
+function onVisibilityChange() {
+  if (document.visibilityState === 'hidden') commitProgress()
+}
+
 </script>
 
 <style scoped>

@@ -7,6 +7,21 @@
           <el-button type="primary" @click="openSourceDialog()">添加文件源</el-button>
           <span class="hint">路径需为容器内挂载路径,如 /data/book1</span>
         </div>
+        <!-- 扫描进度:进行中/刚完成的任务显示进度条 -->
+        <div v-if="activeScans.length" class="scan-progress-list">
+          <div v-for="item in activeScans" :key="item.sourceId" class="scan-progress">
+            <div class="scan-progress-head">
+              <span class="scan-name">{{ item.name }}</span>
+              <span class="scan-stat">{{ scanStatText(item.task) }}</span>
+            </div>
+            <el-progress
+              :percentage="scanPercent(item.task)"
+              :status="item.task.status === 'failed' ? 'exception' : item.task.status === 'done' ? 'success' : undefined"
+              :indeterminate="item.task.status === 'pending' || (item.task.status === 'running' && item.task.total === 0)"
+              :duration="1"
+            />
+          </div>
+        </div>
         <!-- 桌面端:表格 -->
         <el-table v-if="!isMobile" :data="sources" style="width: 100%">
           <el-table-column prop="name" label="名称" />
@@ -143,14 +158,17 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { sourcesApi, usersApi, type Source, type User } from '@/api/admin'
+import { sourcesApi, usersApi, type ScanTask, type Source, type User } from '@/api/admin'
 
 const tab = ref('sources')
 const sources = ref<Source[]>([])
 const users = ref<User[]>([])
 const scanning = reactive<Record<string, boolean>>({})
+// 扫描实时进度(sourceId → 最近任务),供进度条展示;pollTimers 保存轮询定时器
+const scanProgress = reactive<Record<string, ScanTask>>({})
+const pollTimers: Record<string, ReturnType<typeof setInterval>> = {}
 
 // 响应式:移动端改用卡片列表,避免表格横向溢出
 const isMobile = ref(window.innerWidth < 768)
@@ -221,6 +239,7 @@ async function scan(row: Source, force = false) {
   try {
     const { data: task } = await sourcesApi.scan(row.id, force)
     ElMessage.success(force ? '重新解析已开始' : '扫描已开始')
+    scanProgress[row.id] = task
     poll(task.id, row.id)
   } catch (e: any) {
     scanning[row.id] = false
@@ -229,16 +248,69 @@ async function scan(row: Source, force = false) {
 }
 
 function poll(taskId: string, sourceId: string) {
-  const timer = setInterval(async () => {
-    const { data } = await sourcesApi.scanTask(taskId)
-    if (data.status === 'done' || data.status === 'failed') {
-      clearInterval(timer)
-      scanning[sourceId] = false
-      ElMessage[data.status === 'done' ? 'success' : 'error'](
-        data.status === 'done' ? `扫描完成:新增 ${data.added},更新 ${data.updated}` : `扫描失败:${data.error}`,
-      )
+  if (pollTimers[sourceId]) clearInterval(pollTimers[sourceId])
+  pollTimers[sourceId] = setInterval(async () => {
+    try {
+      const { data } = await sourcesApi.scanTask(taskId)
+      scanProgress[sourceId] = data
+      if (data.status === 'done' || data.status === 'failed') {
+        clearInterval(pollTimers[sourceId])
+        delete pollTimers[sourceId]
+        scanning[sourceId] = false
+        ElMessage[data.status === 'done' ? 'success' : 'error'](
+          data.status === 'done' ? `扫描完成:新增 ${data.added},更新 ${data.updated}` : `扫描失败:${data.error}`,
+        )
+        // 完成后刷新文件源列表(更新 last_scan_at),几秒后清除进度条
+        loadSources()
+        setTimeout(() => { delete scanProgress[sourceId] }, 5000)
+      }
+    } catch {
+      // 单次轮询失败忽略,下次继续
     }
   }, 1500)
+}
+
+// 页面加载/刷新时恢复:查每个源最近任务,仍在跑则续上进度与轮询
+async function restoreRunningScans() {
+  await Promise.all(
+    sources.value.map(async (s) => {
+      try {
+        const { data } = await sourcesApi.scanTasks(s.id)
+        const latest = data[0]
+        if (latest && (latest.status === 'pending' || latest.status === 'running')) {
+          scanProgress[s.id] = latest
+          scanning[s.id] = true
+          poll(latest.id, s.id)
+        }
+      } catch {
+        /* 忽略 */
+      }
+    }),
+  )
+}
+
+// 当前需展示进度条的扫描(进行中或刚完成的),附上源名便于显示
+const activeScans = computed(() =>
+  Object.entries(scanProgress).map(([sourceId, task]) => ({
+    sourceId,
+    task,
+    name: sources.value.find((s) => s.id === sourceId)?.name || '文件源',
+  })),
+)
+
+function scanPercent(task: ScanTask): number {
+  if (task.status === 'done') return 100
+  if (!task.total) return 0
+  return Math.min(100, Math.round((task.processed / task.total) * 100))
+}
+
+function scanStatText(task: ScanTask): string {
+  if (task.status === 'pending') return '等待中…'
+  if (task.status === 'failed') return `失败:${task.error || '未知错误'}`
+  if (task.status === 'done') return `完成 · 新增 ${task.added} · 更新 ${task.updated}`
+  // running
+  const base = task.total ? `${task.processed}/${task.total}` : '扫描中…'
+  return `${base} · 新增 ${task.added} · 更新 ${task.updated}`
 }
 
 async function removeSource(row: Source) {
@@ -288,9 +360,11 @@ async function savePermissions() {
 onMounted(async () => {
   window.addEventListener('resize', onResize)
   await Promise.all([loadSources(), loadUsers()])
+  await restoreRunningScans()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
+  Object.values(pollTimers).forEach(clearInterval)
 })
 </script>
 
@@ -300,6 +374,21 @@ onBeforeUnmount(() => {
 .hint { color: #909399; font-size: 13px; }
 .perm-row { padding: 6px 0; }
 .perm-row .path { color: #c0c4cc; font-size: 12px; margin-left: 6px; }
+
+/* 扫描进度 */
+.scan-progress-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+.scan-progress {
+  background: #fff;
+  border: 1px solid #ebeef5;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.scan-progress-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 8px; font-size: 13px;
+}
+.scan-progress-head .scan-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scan-progress-head .scan-stat { color: #909399; flex-shrink: 0; }
 
 /* 移动端卡片列表 */
 .card-list { display: flex; flex-direction: column; gap: 12px; }

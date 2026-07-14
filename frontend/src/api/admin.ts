@@ -22,6 +22,9 @@ export interface ScanTask {
   added: number
   updated: number
   error: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  created_at?: string
 }
 
 export interface User {
@@ -56,6 +59,7 @@ export const sourcesApi = {
   scan: (id: string, force = false) =>
     http.post<ScanTask>(`/sources/${id}/scan`, null, { params: { force } }),
   scanTask: (taskId: string) => http.get<ScanTask>(`/scan-tasks/${taskId}`),
+  scanTasks: (sourceId: string) => http.get<ScanTask[]>(`/sources/${sourceId}/scan-tasks`),
 }
 
 export const usersApi = {
