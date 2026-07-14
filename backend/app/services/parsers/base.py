@@ -5,8 +5,30 @@
 """
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+
+
+def clean_html_body(html: str) -> str:
+    """从完整 HTML/XHTML 文档中提取 <body> 内的内容,去掉 XML 声明、DOCTYPE、head。
+
+    避免完整文档结构(特别是带 namespace 的 XHTML)导致前端 v-html 渲染异常。
+    """
+    # 去掉 XML 声明
+    html = re.sub(r'^<\?xml[^>]*\?>', '', html, count=1, flags=re.IGNORECASE)
+    # 去掉 DOCTYPE
+    html = re.sub(r'^<!DOCTYPE[^>]*>', '', html, count=1, flags=re.IGNORECASE)
+    # 提取 body 内容
+    body_match = re.search(r'<body[^>]*>(.*)</body>', html, flags=re.DOTALL | re.IGNORECASE)
+    if body_match:
+        html = body_match.group(1)
+    # 去掉外层 html 标签(如果没有 body 但有 html 的话)
+    else:
+        html = re.sub(r'^<html[^>]*>', '', html, count=1, flags=re.IGNORECASE)
+        html = re.sub(r'</html>$', '', html, count=1, flags=re.IGNORECASE)
+        html = re.sub(r'^<head[^>]*>.*?</head>', '', html, count=1, flags=re.DOTALL | re.IGNORECASE)
+    return html.strip()
 
 
 @dataclass

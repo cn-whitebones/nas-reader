@@ -100,18 +100,20 @@ class MobiParser(BaseParser):
         if output.lower().endswith(".epub") and os.path.isfile(output):
             return self._get_epub_parser().read_chapter(output, chapter, next_location)
 
-        # 传统 MOBI7: output 是目录,读其中的 html 文件
-        if not os.path.isdir(output):
+        # 传统 MOBI7: output 可能是 .html 文件本身,也可能是目录
+        if output.lower().endswith(".html") or output.lower().endswith(".htm"):
+            html_file = output
+        elif os.path.isdir(output):
+            html_file = os.path.join(output, "book.html")
+            if not os.path.exists(html_file):
+                for name in os.listdir(output):
+                    if name.lower().endswith(".html") or name.lower().endswith(".htm"):
+                        html_file = os.path.join(output, name)
+                        break
+                else:
+                    return ""
+        else:
             return ""
-        html_file = os.path.join(output, "book.html")
-        if not os.path.exists(html_file):
-            # mobi 库可能用其他文件名,找一下
-            for name in os.listdir(output):
-                if name.lower().endswith(".html") or name.lower().endswith(".htm"):
-                    html_file = os.path.join(output, name)
-                    break
-            else:
-                return ""
 
         try:
             with open(html_file, "r", encoding="utf-8", errors="replace") as f:
@@ -130,4 +132,5 @@ class MobiParser(BaseParser):
         start = max(0, min(start, len(text)))
         end = max(start, min(end, len(text)))
 
-        return text[start:end]
+        from app.services.parsers.base import clean_html_body
+        return clean_html_body(text[start:end])
