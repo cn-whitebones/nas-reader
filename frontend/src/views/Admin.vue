@@ -7,7 +7,8 @@
           <el-button type="primary" @click="openSourceDialog()">添加文件源</el-button>
           <span class="hint">路径需为容器内挂载路径,如 /data/book1</span>
         </div>
-        <el-table :data="sources" style="width: 100%">
+        <!-- 桌面端:表格 -->
+        <el-table v-if="!isMobile" :data="sources" style="width: 100%">
           <el-table-column prop="name" label="名称" />
           <el-table-column prop="root_path" label="路径" show-overflow-tooltip />
           <el-table-column prop="type" label="类型" width="90" />
@@ -23,6 +24,24 @@
             </template>
           </el-table-column>
         </el-table>
+        <!-- 移动端:卡片列表 -->
+        <div v-else class="card-list">
+          <div v-for="s in sources" :key="s.id" class="data-card">
+            <div class="card-head">
+              <span class="card-title">{{ s.name }}</span>
+              <el-tag size="small" effect="plain">{{ s.type }}</el-tag>
+            </div>
+            <div class="card-line"><span class="k">路径</span><span class="v">{{ s.root_path }}</span></div>
+            <div class="card-line"><span class="k">自动扫描</span><span class="v">{{ s.auto_scan ? `每 ${s.scan_interval_minutes} 分` : '否' }}</span></div>
+            <div class="card-actions">
+              <el-button size="small" :loading="scanning[s.id]" @click="scan(s)">扫描</el-button>
+              <el-button size="small" :loading="scanning[s.id]" @click="scan(s, true)">重新解析</el-button>
+              <el-button size="small" @click="openSourceDialog(s)">编辑</el-button>
+              <el-button size="small" type="danger" @click="removeSource(s)">删除</el-button>
+            </div>
+          </div>
+          <el-empty v-if="!sources.length" description="暂无文件源" />
+        </div>
       </el-tab-pane>
 
       <!-- 用户 -->
@@ -30,7 +49,8 @@
         <div class="tab-toolbar">
           <el-button type="primary" @click="openUserDialog()">创建用户</el-button>
         </div>
-        <el-table :data="users" style="width: 100%">
+        <!-- 桌面端:表格 -->
+        <el-table v-if="!isMobile" :data="users" style="width: 100%">
           <el-table-column prop="username" label="用户名" />
           <el-table-column prop="role" label="角色" width="100" />
           <el-table-column label="状态" width="90">
@@ -46,11 +66,27 @@
             </template>
           </el-table-column>
         </el-table>
+        <!-- 移动端:卡片列表 -->
+        <div v-else class="card-list">
+          <div v-for="u in users" :key="u.id" class="data-card">
+            <div class="card-head">
+              <span class="card-title">{{ u.username }}</span>
+              <el-tag size="small" :type="u.is_active ? 'success' : 'info'">{{ u.is_active ? '启用' : '禁用' }}</el-tag>
+            </div>
+            <div class="card-line"><span class="k">角色</span><span class="v">{{ u.role === 'admin' ? '管理员' : '普通用户' }}</span></div>
+            <div class="card-actions">
+              <el-button size="small" @click="toggleActive(u)">{{ u.is_active ? '禁用' : '启用' }}</el-button>
+              <el-button size="small" @click="openPermDialog(u)">权限</el-button>
+              <el-button size="small" type="danger" @click="removeUser(u)">删除</el-button>
+            </div>
+          </div>
+          <el-empty v-if="!users.length" description="暂无用户" />
+        </div>
       </el-tab-pane>
     </el-tabs>
 
     <!-- 文件源对话框 -->
-    <el-dialog v-model="sourceDialog" :title="editingSource ? '编辑文件源' : '添加文件源'" width="460px">
+    <el-dialog v-model="sourceDialog" :title="editingSource ? '编辑文件源' : '添加文件源'" :width="dialogWidth">
       <el-form :model="sourceForm" label-width="90px">
         <el-form-item label="名称"><el-input v-model="sourceForm.name" /></el-form-item>
         <el-form-item label="路径"><el-input v-model="sourceForm.root_path" placeholder="/data/book1" :disabled="!!editingSource" /></el-form-item>
@@ -73,7 +109,7 @@
     </el-dialog>
 
     <!-- 用户对话框 -->
-    <el-dialog v-model="userDialog" title="创建用户" width="400px">
+    <el-dialog v-model="userDialog" title="创建用户" :width="userDialogWidth">
       <el-form :model="userForm" label-width="70px">
         <el-form-item label="用户名"><el-input v-model="userForm.username" /></el-form-item>
         <el-form-item label="密码"><el-input v-model="userForm.password" type="password" show-password /></el-form-item>
@@ -91,7 +127,7 @@
     </el-dialog>
 
     <!-- 权限对话框 -->
-    <el-dialog v-model="permDialog" title="文件源访问权限" width="440px">
+    <el-dialog v-model="permDialog" title="文件源访问权限" :width="permDialogWidth">
       <p class="hint">勾选该用户可访问的文件源:</p>
       <el-checkbox-group v-model="checkedSources">
         <div v-for="s in sources" :key="s.id" class="perm-row">
@@ -107,7 +143,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { sourcesApi, usersApi, type Source, type User } from '@/api/admin'
 
@@ -115,6 +151,18 @@ const tab = ref('sources')
 const sources = ref<Source[]>([])
 const users = ref<User[]>([])
 const scanning = reactive<Record<string, boolean>>({})
+
+// 响应式:移动端改用卡片列表,避免表格横向溢出
+const isMobile = ref(window.innerWidth < 768)
+const dialogWidth = ref(isMobile.value ? '94vw' : '460px')
+const userDialogWidth = ref(isMobile.value ? '94vw' : '400px')
+const permDialogWidth = ref(isMobile.value ? '94vw' : '440px')
+function onResize() {
+  isMobile.value = window.innerWidth < 768
+  dialogWidth.value = isMobile.value ? '94vw' : '460px'
+  userDialogWidth.value = isMobile.value ? '94vw' : '400px'
+  permDialogWidth.value = isMobile.value ? '94vw' : '440px'
+}
 
 // 文件源
 const sourceDialog = ref(false)
@@ -238,7 +286,11 @@ async function savePermissions() {
 }
 
 onMounted(async () => {
+  window.addEventListener('resize', onResize)
   await Promise.all([loadSources(), loadUsers()])
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize)
 })
 </script>
 
@@ -248,4 +300,20 @@ onMounted(async () => {
 .hint { color: #909399; font-size: 13px; }
 .perm-row { padding: 6px 0; }
 .perm-row .path { color: #c0c4cc; font-size: 12px; margin-left: 6px; }
+
+/* 移动端卡片列表 */
+.card-list { display: flex; flex-direction: column; gap: 12px; }
+.data-card {
+  background: #fff;
+  border: 1px solid #ebeef5;
+  border-radius: 10px;
+  padding: 14px;
+}
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.card-title { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-line { display: flex; gap: 8px; font-size: 13px; margin: 4px 0; }
+.card-line .k { color: #909399; flex-shrink: 0; min-width: 56px; }
+.card-line .v { color: #606266; word-break: break-all; }
+.card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.card-actions .el-button { margin: 0; }
 </style>
