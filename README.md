@@ -7,18 +7,18 @@
 | 层 | 技术 |
 |---|---|
 | 后端 | Python 3.11 + FastAPI + SQLAlchemy(async) + Alembic |
-| 数据库 | PostgreSQL 16 |
+| 数据库 | SQLite(单文件,零运维) |
 | 前端 | Vue 3 + Vite + TypeScript + Pinia + Element Plus |
 | 阅读器 | txt/epub/mobi 前端重排渲染；pdf 用 pdf.js 原生渲染；漫画自动旋转 |
 | 后台任务 | 进程内 APScheduler(扫描/刮削) |
-| 部署 | docker-compose(frontend / backend / postgres 三容器) |
+| 部署 | docker-compose 单容器(FastAPI 同时托管 API 与前端静态资源) |
 
 ## 功能
 
 - 📁 **文件源管理**:映射目录为文件源，手动 + 自动扫描，扫描进度实时可见
 - 📚 **图书库**:按文件夹层级浏览，支持多种格式
 - ⭐ **书架**:每用户单一默认书架，一键收藏/取消
-- 🔍 **搜索**:pg_trgm 全文搜索，按文件名 + 元数据
+- 🔍 **搜索**:按文件名 + 元数据(标题/作者/标签/描述)模糊匹配
 - 🏷️ **刮削**:多源降级(豆瓣网页抓取 → Google Books → Open Library → 手动)
 - 👥 **多用户**:管理员创建用户并授权，支持默认文件夹权限；支持修改密码
 - 📖 **阅读**:
@@ -35,13 +35,13 @@
 ```bash
 # 1. 准备环境变量
 cp .env.example .env
-# 编辑 .env，至少修改 JWT_SECRET 和 POSTGRES_PASSWORD
-# (生产环境弱密钥会拒绝启动)
+# 编辑 .env，至少修改 JWT_SECRET
+# (生产环境弱密钥会拒绝启动;可用 openssl rand -hex 32 生成)
 
-# 2. 映射你的书目录：编辑 docker-compose.yml 中 backend.volumes
+# 2. 映射你的书目录：编辑 docker-compose.yml 中 volumes
 #    例如:  - /volume1/books:/data/book1:ro
 
-# 3. 启动
+# 3. 启动(单容器)
 docker compose up -d --build
 
 # 4. 访问 http://<host>:8080
@@ -53,6 +53,8 @@ docker compose up -d --build
 2. **管理 → 文件源**：添加映射进来的目录(容器内路径，如 `/data/book1`)为文件源，触发扫描
 3. **管理 → 用户**：创建用户并授权可访问的文件源
 4. 回到**书库**浏览、阅读
+
+> **数据与备份**:所有数据存于单个 SQLite 文件(`dbdata` 卷内 `/data/db/nasreader.db`),封面缩略图存于 `covers` 卷。备份只需复制这两个卷(或 `docker cp` 出 `.db` 文件)。无独立数据库容器,零运维。
 
 ## 目录结构
 
@@ -84,7 +86,8 @@ nas-reader/
 # 后端
 cd backend
 pip install -e ".[dev]"
-# 需本地起一个 postgres，并设置 DATABASE_URL
+# 默认用 SQLite,可通过 DATABASE_URL 覆盖;不设则落到 /data/db(需可写)
+# 本地开发建议: export DATABASE_URL="sqlite+aiosqlite:///./nasreader.db"
 alembic upgrade head
 uvicorn app.main:app --reload
 
@@ -115,6 +118,12 @@ npm run dev   # 默认 http://localhost:5173，已代理 /api 到 :8000
 - [x] 元数据刮削(豆瓣网页抓取 → Google Books → Open Library → 手动)
 - [x] 阅读器(txt/epub 重排 + pdf.js；字体/字号/行距/边距/主题)
 - [x] 跨章节翻页方向动画，顶栏内容避让
-- [x] 数据库迁移(pg_trgm 全文/相似搜索索引)
 - [x] PC/移动端自适应(登录页/书架/详情/管理页卡片布局)
 - [x] iOS PWA 全屏底部白边修复
+- [x] 书库列表/网格双视图切换(localStorage 记忆)
+
+## v1.2 架构精简
+
+- [x] 数据库 PostgreSQL → SQLite(单文件,零运维,备份即复制)
+- [x] 前后端合并为单容器(FastAPI 托管前端静态资源 + SPA 回退 + PWA 缓存头)
+- [x] 部署从三容器(frontend/backend/postgres)精简为一个容器

@@ -1,3 +1,13 @@
+# ── 阶段一:构建前端静态资源 ──────────────────────────────────────────
+FROM node:20-alpine AS frontend-build
+WORKDIR /fe
+RUN npm config set registry https://registry.npmmirror.com
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
+
+# ── 阶段二:后端运行时(顺带托管前端产物)──────────────────────────────
 FROM python:3.11-slim
 
 # 换 Debian apt 源为清华镜像(bookworm 使用 deb822 格式的 debian.sources)
@@ -15,14 +25,17 @@ WORKDIR /app
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 先装依赖以利用构建缓存
-COPY pyproject.toml ./
+COPY backend/pyproject.toml ./
 RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir .
 
-COPY . .
+COPY backend/ .
 
-RUN mkdir -p /app/storage/covers
+# 前端构建产物:由 FastAPI 直接托管(单容器,无需 nginx)
+COPY --from=frontend-build /fe/dist /app/frontend_dist
+
+RUN mkdir -p /app/storage/covers /data/db
 
 EXPOSE 8000
 
-# 启动脚本:等待 DB → 迁移 → 启动
+# 启动:执行迁移 → 启动应用(SQLite 单文件,无需等待外部 DB)
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

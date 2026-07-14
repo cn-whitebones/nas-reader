@@ -1,9 +1,12 @@
 """FastAPI 应用入口。"""
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from starlette.responses import FileResponse, Response
 
 from app.api.v1 import api_router
 from app.core.config import settings
@@ -27,8 +30,7 @@ _INSECURE_JWT_SECRETS = {
 def _check_production_secrets() -> None:
     """生产模式(debug=False)下校验关键密钥。
 
-    JWT_SECRET 弱值直接拒绝启动(伪造令牌的安全边界,修改无副作用);
-    数据库默认密码仅打印警告(强改会与已初始化的数据卷冲突,破坏性大)。
+    JWT_SECRET 弱值直接拒绝启动(伪造令牌的安全边界,修改无副作用)。
     """
     if settings.debug:
         return
@@ -38,11 +40,6 @@ def _check_production_secrets() -> None:
             "请在 .env 中将 JWT_SECRET 改为不少于 16 位的随机字符串,例如:\n"
             "  JWT_SECRET=$(openssl rand -hex 32)\n"
             "(仅本地调试可设置 DEBUG=true 跳过此检查)"
-        )
-    if "change_this_password" in settings.database_url:
-        logger.warning(
-            "数据库仍在使用示例密码 change_this_password,建议生产环境修改 "
-            "POSTGRES_PASSWORD(注意:需在数据卷首次初始化前设置)。"
         )
 
 
@@ -66,7 +63,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.app_name, openapi_url=f"{settings.api_prefix}/openapi.json", lifespan=lifespan)
 
-# 开发环境放开 CORS;生产由 nginx 同源反代,可收紧
+# 开发环境放开 CORS;单容器生产为同源,无需 CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"] if settings.debug else [],
@@ -75,9 +72,62 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 文本资源(html/js/css/json)gzip 压缩,替代原 nginx 的压缩能力
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
 app.include_router(api_router, prefix=settings.api_prefix)
 
 
 @app.get("/health", tags=["system"])
 async def health():
     return {"status": "ok"}
+
+
+# ── 前端静态托管(单容器)────────────────────────────────────────────────
+# 前端构建产物存在时,由本进程直接托管,去掉独立的 nginx 容器。
+# 本地纯后端开发(dist 不存在)时自动跳过,不影响 uvicorn 启动。
+_DIST = settings.frontend_dist
+# 每次请求都需拉取最新的文件(PWA 更新依赖):不缓存
+_NO_CACHE = {"Cache-Control": "no-cache, no-store, must-revalidate"}
+# 带内容 hash 的资源:文件名变化即失效,可长期强缓存
+_IMMUTABLE = {"Cache-Control": "public, max-age=31536000, immutable"}
+
+
+def _index_response() -> FileResponse:
+    return FileResponse(os.path.join(_DIST, "index.html"), headers=_NO_CACHE)
+
+
+if os.path.isdir(_DIST):
+
+    @app.get("/", include_in_schema=False)
+    async def spa_root():
+        return _index_response()
+
+    @app.get("/assets/{asset_path:path}", include_in_schema=False)
+    async def assets(asset_path: str):
+        """带 hash 的静态资源:长期强缓存。"""
+        candidate = os.path.normpath(os.path.join(_DIST, "assets", asset_path))
+        assets_root = os.path.join(_DIST, "assets")
+        if candidate.startswith(assets_root) and os.path.isfile(candidate):
+            return FileResponse(candidate, headers=_IMMUTABLE)
+        return Response(status_code=404)
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        """SPA 路由回退:非 API 路径一律返回对应静态文件或 index.html。
+
+        PWA 关键文件(sw.js / manifest)显式 no-cache,保证更新及时生效。
+        """
+        # 未命中的 API 路径应返回 404,而非被吞成 HTML
+        if full_path.startswith("api/"):
+            return Response(status_code=404)
+        candidate = os.path.normpath(os.path.join(_DIST, full_path))
+        # 防目录穿越:必须仍在 dist 内
+        if candidate.startswith(_DIST) and os.path.isfile(candidate):
+            if full_path in ("sw.js", "manifest.webmanifest", "index.html"):
+                return FileResponse(candidate, headers=_NO_CACHE)
+            return FileResponse(candidate)
+        # 未命中实体文件 → 交给前端路由处理
+        return _index_response()
+else:
+    logger.info("未找到前端构建产物目录 %s,跳过静态托管(纯后端模式)", _DIST)

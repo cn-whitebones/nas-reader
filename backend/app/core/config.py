@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     debug: bool = False
 
-    # 数据库(async 驱动)
-    database_url: str = "postgresql+asyncpg://nasreader:nasreader@postgres:5432/nasreader"
+    # 数据库(async 驱动;默认 SQLite 单文件,适配个人 NAS 单容器部署)
+    database_url: str = "sqlite+aiosqlite:////data/db/nasreader.db"
 
     # JWT
     jwt_secret: str = "CHANGE_ME_IN_PRODUCTION"
@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     # 存储路径(容器内)
     data_root: str = "/data"          # volume 映射的书目录根
     cover_dir: str = "/app/storage/covers"  # 封面缩略图缓存目录
+    frontend_dist: str = "/app/frontend_dist"  # 前端构建产物目录(单容器托管);本地开发不存在则跳过
 
     # 扫描
     scan_default_interval_minutes: int = 60

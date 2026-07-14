@@ -23,13 +23,19 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        render_as_batch=True,  # SQLite 不支持部分 ALTER,用 batch 模式重建表
     )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def do_run_migrations(connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+        render_as_batch=True,  # SQLite 不支持部分 ALTER,用 batch 模式重建表
+    )
     with context.begin_transaction():
         context.run_migrations()
 

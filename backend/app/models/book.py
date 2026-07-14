@@ -4,6 +4,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     DateTime,
     Enum,
@@ -13,9 +14,9 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    Uuid,
     func,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -40,9 +41,9 @@ class Book(Base):
         UniqueConstraint("source_id", "rel_path", name="uq_book_source_path"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     source_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sources.id", ondelete="CASCADE"), index=True
+        Uuid, ForeignKey("sources.id", ondelete="CASCADE"), index=True
     )
     rel_path: Mapped[str] = mapped_column(String(2048), nullable=False, index=True)
     dir_path: Mapped[str] = mapped_column(String(2048), default="", index=True)  # 所在目录(相对),按层级展示用
@@ -78,17 +79,17 @@ class BookMetadata(Base):
     __tablename__ = "book_metadata"
 
     book_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("books.id", ondelete="CASCADE"), primary_key=True
+        Uuid, ForeignKey("books.id", ondelete="CASCADE"), primary_key=True
     )
     title: Mapped[str | None] = mapped_column(String(512), nullable=True, index=True)
     subtitle: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    authors: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
+    authors: Mapped[list[str]] = mapped_column(JSON, default=list)
     publisher: Mapped[str | None] = mapped_column(String(256), nullable=True)
     isbn: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     pub_date: Mapped[date | None] = mapped_column(nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     language: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    tags: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list)
     rating: Mapped[float | None] = mapped_column(Float, nullable=True)
     douban_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     source_provider: Mapped[MetadataProviderName | None] = mapped_column(
@@ -103,9 +104,9 @@ class Chapter(Base):
     __tablename__ = "chapters"
     __table_args__ = (UniqueConstraint("book_id", "idx", name="uq_chapter_book_idx"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     book_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("books.id", ondelete="CASCADE"), index=True
+        Uuid, ForeignKey("books.id", ondelete="CASCADE"), index=True
     )
     idx: Mapped[int] = mapped_column(Integer, nullable=False)  # 从 0 开始的顺序
     title: Mapped[str] = mapped_column(String(512), default="")
