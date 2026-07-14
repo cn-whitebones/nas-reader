@@ -39,8 +39,8 @@
               <el-icon :size="18"><Refresh /></el-icon>
             </div>
           </div>
-          <!-- 点击翻页区域:左/右翻页,中间切换工具栏 -->
-          <div class="tap-zones" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd" @click="onTapZoneClick">
+          <!-- 点击翻页区域:旋转时整个层跟着旋转,左右点击逻辑自然对齐视觉,无需改 JS -->
+          <div class="tap-zones" :class="{ 'rotate-90': comicRotate90 }" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd" @click="onTapZoneClick">
             <div class="tap-zone left" data-zone="left"></div>
             <div class="tap-zone center" data-zone="center"></div>
             <div class="tap-zone right" data-zone="right"></div>
@@ -142,6 +142,7 @@ const comicPageRef = ref<HTMLDivElement>()
 const comicImgRef = ref<HTMLImageElement>()
 const comicRotate90 = ref(false)
 const comicImgLoaded = ref(false)
+const userManualRotated = ref(false) // 用户是否手动点过旋转按钮
 // 从后端返回的 HTML 中提取 base64 img src
 const comicImgSrc = computed(() => {
   if (!isComic.value || !chapterHtml.value) return ''
@@ -151,22 +152,23 @@ const comicImgSrc = computed(() => {
 
 function onComicImgLoad(e: Event) {
   const img = e.target as HTMLImageElement
-  // 仅在本书第一张图时自动判断方向,后续页面完全沿用(包括用户手动切换后的方向)
-  // 这样整本书阅读方向统一,不会翻页时方向跳变
-  if (curChapter.value === 0 && !comicImgLoaded.value) {
-    comicRotate90.value = img.naturalWidth > img.naturalHeight
+  const shouldRotate = img.naturalWidth > img.naturalHeight
+  // 用户没手动改过方向时,每页自动判断(不同页可能横竖混杂)
+  // 用户一旦手动点过旋转按钮,就完全尊重用户选择,不再自动变
+  if (!userManualRotated.value) {
+    comicRotate90.value = shouldRotate
   }
-  // 方向已确定后再显示图片,避免"先竖后横"的闪烁感
   comicImgLoaded.value = true
 }
 function onComicImgError() {
   comicImgLoaded.value = true
 }
 function toggleComicRotate() {
+  userManualRotated.value = true
   comicRotate90.value = !comicRotate90.value
 }
 
-// 切换章节时只重置加载状态,不重置旋转(整本书统一方向)
+// 切换章节时重置加载状态,不清空旋转方向
 watch(curChapter, () => {
   if (isComic.value) {
     comicImgLoaded.value = false
@@ -302,15 +304,9 @@ function prevPageOrChapter() {
 
 function onTapZoneClick(e: MouseEvent) {
   const z = (e.target as HTMLElement)?.dataset?.zone
-  // 漫画旋转90度后,左右点击区逻辑互换(顺时针旋转后,原右侧变成下方)
-  let realZone = z
-  if (isComic.value && comicRotate90.value) {
-    if (z === 'left') realZone = 'right'
-    else if (z === 'right') realZone = 'left'
-  }
-  if (realZone === 'left') { prevPageOrChapter(); showChrome.value = false }
-  else if (realZone === 'right') { nextPageOrChapter(); showChrome.value = false }
-  else if (realZone === 'center') toggleChrome()
+  if (z === 'left') { prevPageOrChapter(); showChrome.value = false }
+  else if (z === 'right') { nextPageOrChapter(); showChrome.value = false }
+  else if (z === 'center') toggleChrome()
 }
 
 // —— 键盘(PC)——
@@ -328,12 +324,8 @@ function onTouchStart(e: TouchEvent) {
   touchStartY = e.touches[0].clientY
 }
 function onTouchEnd(e: TouchEvent) {
-  let dx = e.changedTouches[0].clientX - touchStartX
+  const dx = e.changedTouches[0].clientX - touchStartX
   const dy = e.changedTouches[0].clientY - touchStartY
-  // 漫画旋转90度后,左右滑动的方向逻辑反转
-  if (isComic.value && comicRotate90.value) {
-    dx = -dx
-  }
   if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
     if (dx < 0) nextPageOrChapter()
     else prevPageOrChapter()
@@ -527,11 +519,27 @@ function onVisibilityChange() {
 .theme-dark .hud-page { background: rgba(0, 0, 0, 0.5); color: #c8c8c8; }
 
 /* 点击翻页区域覆盖层(在 HUD 之上,确保点击翻页能命中) */
-.tap-zones { position: absolute; inset: 0; z-index: 10; display: flex; }
+.tap-zones {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  transition: transform 0.15s ease-out;
+}
+/* 旋转后点击区从"左右竖条"变成"上下横条":横拿手机时上半屏点上一页,下半屏下一页
+   不用旋转整个层,直接改 flex 方向 + 宽高互换,简单可靠 */
+.tap-zones.rotate-90 {
+  flex-direction: column;
+}
 .tap-zone { height: 100%; }
 .tap-zone.left { width: 30%; }
 .tap-zone.center { width: 40%; }
 .tap-zone.right { width: 30%; }
+/* 旋转后左右变成上下:原来的 left → 顶部 30%,原来的 right → 底部 30% */
+.tap-zones.rotate-90 .tap-zone { width: 100%; }
+.tap-zones.rotate-90 .tap-zone.left { height: 30%; }
+.tap-zones.rotate-90 .tap-zone.center { height: 40%; }
+.tap-zones.rotate-90 .tap-zone.right { height: 30%; }
 
 .footbar {
   position: absolute;
