@@ -10,8 +10,9 @@
     <!-- iOS 添加到主屏幕后全屏独立运行(去掉 Safari 顶部/底部栏) -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <!-- 状态栏样式:black-translucent 让页面铺满状态栏区域 -->
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- 状态栏样式:default(不透明,内容从状态栏下方开始)。
+         用 black-translucent 会让内容延伸到状态栏下,并在底部配平出等高白边。 -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="NAS Reader" />
     <meta name="theme-color" content="#ffffff" />
     <link rel="manifest" href="/manifest.webmanifest" />

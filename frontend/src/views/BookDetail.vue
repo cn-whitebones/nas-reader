@@ -140,8 +140,8 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.detail { max-width: 900px; margin: 0 auto; }
-.hero { display: flex; gap: 24px; background: #fff; padding: 24px; border-radius: 8px; }
+.detail { max-width: 900px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; }
+.hero { display: flex; gap: 24px; background: #fff; padding: 24px; border-radius: 8px; flex: 1 1 auto; }
 .cover { width: 180px; flex-shrink: 0; aspect-ratio: 3/4; border-radius: 6px; overflow: hidden; background: #eef1f6; }
 .cover img { width: 100%; height: 100%; object-fit: cover; }
 .no-cover { display: flex; align-items: center; justify-content: center; height: 100%; color: #a0a4ac; font-size: 26px; font-weight: 600; }

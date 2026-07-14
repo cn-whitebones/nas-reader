@@ -1,13 +1,15 @@
 <template>
   <el-container class="layout">
-    <el-header class="header">
+    <!-- 顶栏:桌面端含完整导航;移动端仅 logo + 用户信息 -->
+    <el-header v-if="!isReader" class="header">
       <span class="logo">📚 NAS Reader</span>
-      <el-menu mode="horizontal" :router="true" :default-active="$route.path" class="nav">
+      <el-menu mode="horizontal" :router="true" :default-active="activeMenu" class="nav desktop-only">
         <el-menu-item index="/library">书库</el-menu-item>
         <el-menu-item index="/shelves">书架</el-menu-item>
         <el-menu-item index="/search">搜索</el-menu-item>
         <el-menu-item v-if="auth.isAdmin" index="/admin">管理</el-menu-item>
       </el-menu>
+      <span class="spacer mobile-only"></span>
       <el-dropdown @command="onCommand">
         <span class="user">{{ auth.user?.username }} <el-icon><arrow-down /></el-icon></span>
         <template #dropdown>
@@ -17,20 +19,59 @@
         </template>
       </el-dropdown>
     </el-header>
-    <el-main class="main" :class="{ 'reader-mode': isReader }"><router-view /></el-main>
+
+    <el-main class="main" :class="{ 'reader-mode': isReader, 'has-tabbar': !isReader }">
+      <router-view />
+    </el-main>
+
+    <!-- 移动端底部导航栏(原生 App 风格),阅读器模式下隐藏 -->
+    <nav v-if="!isReader" class="tabbar mobile-only">
+      <RouterLink
+        v-for="item in tabs"
+        :key="item.path"
+        :to="item.path"
+        class="tab-item"
+        :class="{ active: isActiveTab(item.path) }"
+      >
+        <el-icon class="tab-icon"><component :is="item.icon" /></el-icon>
+        <span class="tab-label">{{ item.label }}</span>
+      </RouterLink>
+    </nav>
   </el-container>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ArrowDown } from '@element-plus/icons-vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ArrowDown, Reading, Collection, Search, Setting } from '@element-plus/icons-vue'
+import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 const isReader = computed(() => route.name === 'reader')
+
+// 顶部菜单高亮:详情/阅读页归属书库
+const activeMenu = computed(() => {
+  const p = route.path
+  if (p.startsWith('/books') || p.startsWith('/read')) return '/library'
+  return p
+})
+
+const tabs = computed(() => {
+  const base = [
+    { path: '/library', label: '书库', icon: Reading },
+    { path: '/shelves', label: '书架', icon: Collection },
+    { path: '/search', label: '搜索', icon: Search },
+  ]
+  if (auth.isAdmin) base.push({ path: '/admin', label: '管理', icon: Setting })
+  return base
+})
+
+function isActiveTab(path: string) {
+  if (path === '/library') return route.path.startsWith('/library') || route.path.startsWith('/books')
+  return route.path.startsWith(path)
+}
 
 function onCommand(cmd: string) {
   if (cmd === 'logout') {
@@ -59,18 +100,59 @@ function onCommand(cmd: string) {
 .nav { flex: 1; min-width: 0; height: 56px; border-bottom: none; }
 .nav :deep(.el-menu-item) { height: 56px; line-height: 56px; }
 .user { cursor: pointer; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.spacer { flex: 1; }
 .main { background: #f5f7fa; }
 /* 阅读器模式:去掉 el-main 默认内边距与滚动,交给阅读器内部自行滚动 */
 .reader-mode { padding: 0; overflow: hidden; }
-/* 移动端:收紧导航,避免横向溢出 */
+
+/* 底部导航栏默认(桌面)隐藏 */
+.tabbar { display: none; }
+.mobile-only { display: none; }
+.desktop-only { display: flex; }
+
+/* 移动端:顶栏精简,导航移到底部 tabbar */
 @media (max-width: 600px) {
-  /* 顶部更矮;只调左右内边距,避免简写覆盖 padding-top 安全区 */
-  .header { gap: 6px; padding-left: 8px; padding-right: 8px; height: calc(46px + env(safe-area-inset-top)); }
-  .logo { font-size: 13px; }
-  .nav { height: 46px; }
-  .nav :deep(.el-menu-item) { height: 46px; line-height: 46px; padding: 0 10px; }
+  .desktop-only { display: none; }
+  .mobile-only { display: block; }
+
+  .header { gap: 6px; padding-left: 12px; padding-right: 12px; height: calc(44px + env(safe-area-inset-top)); }
+  .logo { font-size: 14px; }
   .user { font-size: 13px; }
-  /* 仅普通页面收紧内边距并避让 home 横条;阅读器保持全屏无边距 */
-  .main:not(.reader-mode) { padding: 12px; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .main:not(.reader-mode) { padding: 12px; }
+  /* 内容区为底部 tabbar 预留空间(tabbar 图标区 50px + 减半安全区 + 间距) */
+  .main.has-tabbar { padding-bottom: calc(12px + 50px + env(safe-area-inset-bottom) * 0.55); }
+
+  .tabbar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    background: #fff;
+    border-top: 1px solid #ebeef5;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
+    /* 底部避让 home 横条,但只留约 60% 安全区,让图标更贴近底部;
+       左右加内边距,使首末图标避开屏幕底部圆角 */
+    padding-bottom: calc(env(safe-area-inset-bottom) * 0.55);
+    padding-left: max(env(safe-area-inset-left), 8px);
+    padding-right: max(env(safe-area-inset-right), 8px);
+  }
+  .tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    height: 50px;
+    text-decoration: none;
+    color: #909399;
+    font-size: 11px;
+    border-radius: 8px;
+  }
+  .tab-icon { font-size: 20px; }
+  .tab-label { line-height: 1; white-space: nowrap; }
+  .tab-item.active { color: var(--el-color-primary); }
 }
 </style>
