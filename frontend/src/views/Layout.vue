@@ -41,7 +41,7 @@
 
     <!-- 修改密码 -->
     <el-dialog v-model="pwdVisible" title="修改密码" :width="dialogWidth" @closed="resetPwdForm">
-      <el-form ref="pwdFormRef" :model="pwdForm" :rules="pwdRules" label-width="80px">
+      <el-form ref="pwdFormRef" :model="pwdForm" :rules="pwdRules" label-width="94px">
         <el-form-item label="原密码" prop="oldPassword">
           <el-input v-model="pwdForm.oldPassword" type="password" show-password />
         </el-form-item>
