@@ -115,8 +115,6 @@ const drawerSize = computed(() => (window.innerWidth < 600 ? '80%' : 320))
 // HUD 显示:章节名(PDF 时为书名),分页(统一 1-based)
 const chapterTitle = computed(() => chapters.value[curChapter.value]?.title || book.value?.title || book.value?.file_name || '')
 
-// 跨章节翻页时,新章节分页完成后要跳到的位置:'last' = 末页
-let pendingGoLast = false
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
@@ -146,11 +144,16 @@ onBeforeUnmount(() => {
 
 async function loadChapter(idx: number, goLast = false) {
   if (idx < 0 || idx >= chapters.value.length) return
+  // 通知阅读器切换方向与目标页,让新章节按翻页方向做进入动画
+  if (idx > curChapter.value) {
+    htmlReaderRef.value?.prepareChapterTransition('next', 'first')
+  } else if (idx < curChapter.value) {
+    htmlReaderRef.value?.prepareChapterTransition('prev', goLast ? 'last' : 'first')
+  }
   curChapter.value = idx
-  pendingGoLast = goLast
   const { data } = await booksApi.content(bookId, idx)
   chapterHtml.value = data.html
-  // html 变化会触发 HtmlReader 重新分页并按 initialCharOffset 定位
+  // html 变化会触发 HtmlReader 重新分页并按目标页/initialCharOffset 定位
 }
 
 function jumpChapter(idx: number) {
@@ -163,11 +166,6 @@ function jumpChapter(idx: number) {
 function onPaginated(total: number, current: number) {
   totalPages.value = total
   curPage.value = current
-  // 跨章节:进入下一章从第一页(默认),进入上一章跳到末页
-  if (pendingGoLast) {
-    pendingGoLast = false
-    htmlReaderRef.value?.goToPage(total - 1)
-  }
   updatePageFlags()
 }
 
