@@ -25,6 +25,7 @@ from app.schemas.auth import (
     TokenResponse,
     UserOut,
 )
+from app.services.shelf import get_or_create_default_shelf
 
 router = APIRouter(tags=["auth"])
 
@@ -49,6 +50,7 @@ async def setup_admin(payload: SetupRequest, db: AsyncSession = Depends(get_db))
     await db.flush()
     db.add(ReadingSettings(user_id=admin.id))
     await db.commit()
+    await get_or_create_default_shelf(db, admin.id)
     await db.refresh(admin)
     return admin
 

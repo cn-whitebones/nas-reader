@@ -18,6 +18,7 @@ from app.schemas.auth import (
     UserOut,
     UserUpdate,
 )
+from app.services.shelf import get_or_create_default_shelf
 
 router = APIRouter(prefix="/users", tags=["users"], dependencies=[Depends(get_current_admin)])
 
@@ -64,6 +65,7 @@ async def create_user(payload: UserCreate, db: AsyncSession = Depends(get_db)):
     db.add(ReadingSettings(user_id=user.id))
     await _copy_default_permissions(db, user.id)
     await db.commit()
+    await get_or_create_default_shelf(db, user.id)
     await db.refresh(user)
     return user
 

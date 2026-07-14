@@ -26,15 +26,9 @@
             {{ book.progress && book.progress.percent > 0 ? '继续阅读' : '开始阅读' }}
           </el-button>
           <el-button size="large" class="act-btn" @click="scrapeDialog = true">刮削信息</el-button>
-          <el-dropdown class="shelf-dropdown" @command="addToShelf" trigger="click">
-            <el-button size="large" class="act-btn">收藏到书架 <el-icon><ArrowDown /></el-icon></el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item v-for="sh in shelves" :key="sh.id" :command="sh.id">{{ sh.name }}</el-dropdown-item>
-                <el-dropdown-item v-if="!shelves.length" disabled>请先在书架页创建书架</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+          <el-button size="large" class="act-btn" :type="inShelf ? 'success' : 'default'" @click="toggleShelf">
+            {{ inShelf ? '已收藏' : '收藏到书架' }}
+          </el-button>
         </div>
       </div>
     </div>
@@ -73,10 +67,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { ArrowDown } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { booksApi, type BookDetail } from '@/api/books'
-import { shelvesApi, type Shelf } from '@/api/shelves'
+import { shelvesApi } from '@/api/shelves'
 import { scrapeApi, type Candidate } from '@/api/admin'
 import CoverImage from '@/components/CoverImage.vue'
 
@@ -86,7 +79,7 @@ const bookId = route.params.id as string
 const book = ref<BookDetail | null>(null)
 const md = computed(() => book.value?.metadata)
 const title = computed(() => md.value?.title || book.value?.file_name || '')
-const shelves = ref<Shelf[]>([])
+const inShelf = ref(false)
 
 const scrapeDialog = ref(false)
 const scrapeKeyword = ref('')
@@ -101,6 +94,15 @@ async function load() {
   const { data } = await booksApi.detail(bookId)
   book.value = data
   scrapeKeyword.value = data.metadata?.title || data.file_name.replace(/\.[^.]+$/, '')
+}
+
+async function loadShelfState() {
+  try {
+    const { data } = await shelvesApi.myBooks()
+    inShelf.value = data.some((b) => b.id === bookId)
+  } catch {
+    inShelf.value = false
+  }
 }
 
 async function runScrape() {
@@ -123,19 +125,25 @@ async function applyCandidate(c: Candidate) {
   await load()
 }
 
-async function addToShelf(shelfId: string) {
+async function toggleShelf() {
   try {
-    await shelvesApi.addBook(shelfId, bookId)
-    ElMessage.success('已收藏')
+    if (inShelf.value) {
+      await shelvesApi.removeBook(bookId)
+      inShelf.value = false
+      ElMessage.success('已从书架移除')
+    } else {
+      await shelvesApi.addBook(bookId)
+      inShelf.value = true
+      ElMessage.success('已收藏到书架')
+    }
   } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '收藏失败')
+    ElMessage.error(e.response?.data?.detail || '操作失败')
   }
 }
 
 onMounted(async () => {
   await load()
-  const { data } = await shelvesApi.list()
-  shelves.value = data
+  await loadShelfState()
 })
 </script>
 
@@ -152,8 +160,6 @@ onMounted(async () => {
 .tags { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
 .actions { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .act-btn { margin: 0; }
-/* dropdown 触发器本身撑满,使内部按钮与其它按钮同高同宽策略一致 */
-.shelf-dropdown :deep(.el-button) { width: 100%; }
 .description { background: #fff; padding: 24px; border-radius: 8px; margin-top: 16px; }
 .description p { color: #606266; line-height: 1.8; white-space: pre-wrap; }
 .scrape-head { display: flex; gap: 10px; margin-bottom: 16px; }
@@ -176,6 +182,5 @@ onMounted(async () => {
   .provider-select { width: 100%; }
   /* 操作按钮移动端各占一行,高度一致不尴尬换行 */
   .actions { flex-direction: column; align-items: stretch; }
-  .shelf-dropdown { width: 100%; }
 }
 </style>
