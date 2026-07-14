@@ -32,6 +32,29 @@
 
 ## 快速开始
 
+### 方式一:直接使用已发布镜像(推荐,免构建)
+
+镜像已发布到 Docker Hub([`whitebones/nas-reader`](https://hub.docker.com/r/whitebones/nas-reader)),支持 `linux/amd64` 与 `linux/arm64`。
+
+```bash
+# 1. 下载编排文件与环境变量模板
+curl -O https://gitea.whitebones.cn:33333/wangwanxiong/nas-reader/raw/branch/main/docker-compose.hub.yml
+curl -o .env https://gitea.whitebones.cn:33333/wangwanxiong/nas-reader/raw/branch/main/.env.example
+
+# 2. 编辑 .env,至少修改 JWT_SECRET(可用 openssl rand -hex 32 生成)
+# 3. 编辑 docker-compose.hub.yml,把你的书目录映射进 volumes
+#    例如:  - /volume1/books:/data/book1:ro
+
+# 4. 拉取并启动
+docker compose -f docker-compose.hub.yml up -d
+
+# 5. 访问 http://<host>:8080,首次进入引导页创建管理员
+```
+
+后续升级到新版本:`docker compose -f docker-compose.hub.yml pull && docker compose -f docker-compose.hub.yml up -d`
+
+### 方式二:从源码本地构建
+
 ```bash
 # 1. 准备环境变量
 cp .env.example .env

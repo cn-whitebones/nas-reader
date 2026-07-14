@@ -1,0 +1,22 @@
+services:
+  nas-reader:
+    image: whitebones/nas-reader:latest   # 直接拉取已发布镜像,无需本地构建
+    restart: unless-stopped
+    environment:
+      # SQLite 单文件,存于挂载卷;无需外部数据库
+      DATABASE_URL: sqlite+aiosqlite:////data/db/nasreader.db
+      JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_IN_PRODUCTION}
+      DATA_ROOT: /data
+      DEBUG: ${DEBUG:-false}
+    ports:
+      - "${WEB_PORT:-8080}:8000"
+    volumes:
+      - covers:/app/storage/covers
+      - dbdata:/data/db          # SQLite 数据库文件
+      # ↓↓↓ 在此映射你的电子书目录,添加为文件源时使用容器内路径(/data/xxx)
+      # - /path/to/your/books:/data/book1:ro
+      # - /path/to/your/comics:/data/comic1:ro
+
+volumes:
+  covers:
+  dbdata:
