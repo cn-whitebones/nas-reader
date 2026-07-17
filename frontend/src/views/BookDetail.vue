@@ -19,26 +19,40 @@
           <span class="progress-text">已读 {{ progressPct.toFixed(1) }}%</span>
         </div>
 
-        <!-- 主 CTA:阅读按钮突出,收藏 icon 化 -->
+        <!-- 主 CTA 独占一行,次按钮 grid 均分下一行(1个占满,2个平分),
+             无论宽窄屏都对齐,避免 flex-wrap 后主/次按钮宽度不一致 -->
         <div class="actions">
-          <el-button type="primary" size="large" class="cta-read" @click="$router.push(`/read/${book.id}`)">
+          <el-button
+            type="primary"
+            size="large"
+            class="cta-primary"
+            @click="$router.push(`/read/${book.id}`)"
+          >
             <el-icon><Reading /></el-icon>
             {{ progressPct > 0 ? '继续阅读' : '开始阅读' }}
           </el-button>
-          <el-button
-            size="large"
-            class="cta-icon"
-            :type="inShelf ? 'success' : 'default'"
-            @click="toggleShelf"
-            :title="inShelf ? '已收藏' : '收藏到书架'"
-          >
-            <el-icon><StarFilled v-if="inShelf" /><Star v-else /></el-icon>
-            <span class="cta-icon-label">{{ inShelf ? '已收藏' : '收藏' }}</span>
-          </el-button>
-          <el-button v-if="isAdmin" size="large" class="cta-icon" @click="openScrapeDialog" title="刮削信息">
-            <el-icon><Refresh /></el-icon>
-            <span class="cta-icon-label">刮削</span>
-          </el-button>
+          <div class="secondary-actions">
+            <el-button
+              size="large"
+              class="cta-icon"
+              :type="inShelf ? 'success' : 'default'"
+              @click="toggleShelf"
+              :title="inShelf ? '已收藏' : '收藏到书架'"
+            >
+              <el-icon><StarFilled v-if="inShelf" /><Star v-else /></el-icon>
+              <span>{{ inShelf ? '已收藏' : '收藏' }}</span>
+            </el-button>
+            <el-button
+              v-if="isAdmin"
+              size="large"
+              class="cta-icon"
+              @click="openScrapeDialog"
+              title="刮削信息"
+            >
+              <el-icon><Refresh /></el-icon>
+              <span>刮削</span>
+            </el-button>
+          </div>
         </div>
       </div>
     </div>
@@ -328,19 +342,31 @@ onMounted(async () => {
   background: #fff;
   padding: 24px;
   border-radius: 8px;
+  /* stretch:让封面和信息列同高,视觉更整齐 */
+  align-items: stretch;
 }
 .cover {
   width: 180px;
   flex-shrink: 0;
-  align-self: flex-start;
   aspect-ratio: 3/4;
   border-radius: 6px;
   overflow: hidden;
   background: #eef1f6;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  align-self: flex-start;
 }
 .cover :deep(img) { width: 100%; height: 100%; object-fit: cover; }
-.info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+/* info 与 cover 等高对齐:min-height = width(180) * 4/3 = 240px,
+   内容用 space-between 自然分布(标题在顶,CTA 在底),观感齐整 */
+.info {
+  flex: 1;
+  min-width: 0;
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+}
+/* 内容与 CTA 之间用 margin-top:auto 弹性推 CTA 到底部 */
+.info > .actions { margin-top: auto; }
 .book-title {
   margin: 0 0 6px;
   font-size: 22px;
@@ -357,11 +383,18 @@ onMounted(async () => {
 .progress :deep(.el-progress) { flex: 1; }
 .progress-text { color: #67c23a; font-size: 12px; white-space: nowrap; }
 
-/* CTA:主按钮宽,次按钮 icon+文字紧凑 */
-.actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: auto; }
-.cta-read { flex: 1; min-width: 160px; font-weight: 600; }
-.cta-read :deep(.el-icon) { margin-right: 4px; }
-.cta-icon { padding: 0 14px; }
+/* CTA 两行结构:主按钮独占,次按钮 grid 均分,避免 flex-wrap 后不对齐;
+   info 用 flex 列布局,.actions 由 .info > .actions { margin-top:auto } 推到底 */
+.actions { display: flex; flex-direction: column; gap: 10px; }
+.cta-primary { width: 100%; font-weight: 600; margin: 0; }
+.cta-primary :deep(.el-icon) { margin-right: 4px; }
+/* 次按钮 grid 均分,只有 1 个时也占满(1fr),2 个时平分 —— 天然对齐 */
+.secondary-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 10px;
+}
+.cta-icon { margin: 0; }
 .cta-icon :deep(.el-icon) { margin-right: 4px; }
 
 /* ---------- 指标卡片:4 格网格 ---------- */
@@ -470,16 +503,20 @@ onMounted(async () => {
     align-items: flex-start;
   }
   .cover { width: 96px; border-radius: 4px; }
+  /* 移动端:info 与 96px 封面等高(96*4/3=128px),而非 PC 的 240 */
+  .info { min-height: 128px; }
   .book-title { font-size: 17px; margin-bottom: 4px; }
   .subtitle { font-size: 12px; margin-bottom: 4px; }
   .author { font-size: 13px; margin-bottom: 8px; }
   .tags { margin-bottom: 8px; }
   .progress { margin: 4px 0 10px; }
-  /* CTA:主按钮占满行,次按钮同一行图标+短文字,不需再堆栈 */
+  /* CTA:移动端垂直堆叠,不与 cover 等高,直接从内容后自然排列 */
+  .info > .actions { margin-top: 4px; }
   .actions { gap: 8px; }
-  .cta-read { flex: 1 1 100%; }
-  .cta-icon { flex: 1; padding: 0 6px; min-width: 0; }
-  .cta-icon-label { font-size: 13px; }
+  .cta-primary { padding: 0 12px; }
+  .cta-primary :deep(span) { font-size: 14px; }
+  .cta-icon { padding: 0 6px; min-width: 0; }
+  .cta-icon :deep(span) { font-size: 13px; }
 
   /* 指标卡:小屏收紧 padding,数字略缩;仍保持 4 格 */
   .stats { padding: 12px; gap: 6px; }
@@ -502,7 +539,5 @@ onMounted(async () => {
 /* 极窄屏(<360px):指标卡改 2×2,防止 4 格挤压导致文字截断 */
 @media (max-width: 360px) {
   .stats { grid-template-columns: repeat(2, 1fr); }
-  /* 3 个 CTA 时,收藏/刮削挤;直接让"收藏"独占一行,刮削管理员才有,行数适度 */
-  .cta-icon { flex: 1 1 45%; }
 }
 </style>
