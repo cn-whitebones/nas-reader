@@ -567,8 +567,8 @@ onMounted(async () => {
   .provider-select { width: 100%; }
 }
 
-/* 极窄屏(<400px):次按钮只显示 icon,隐藏文字;指标卡 2×2 */
-@media (max-width: 400px) {
+/* 所有移动端次按钮只显示 icon,避免文字拥挤;指标卡 2×2 */
+@media (max-width: 700px) {
   .cta-icon-text { display: none; }
   .cta-icon :deep(.el-icon) { margin-right: 0 !important; }
 }
