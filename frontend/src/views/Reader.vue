@@ -15,7 +15,13 @@
       <!-- 沉浸态浮层:左下章节名 + 右下分页(仅 chrome 隐藏时显示) -->
       <div v-show="!showChrome && book" class="hud">
         <span class="hud-chapter">{{ chapterTitle }}</span>
-        <span class="hud-page">{{ book?.format === 'comic' ? `第 ${curChapter + 1} 页` : `${curPage + 1}/${totalPages}` }}</span>
+        <span class="hud-page">
+          <template v-if="book?.format === 'comic'">
+            第 {{ curChapter + 1 }} 页
+            <template v-if="comicIsDoublePage">{{ comicSubPage === 0 ? '· 左' : '· 右' }}</template>
+          </template>
+          <template v-else>{{ curPage + 1 }}/{{ totalPages }}</template>
+        </span>
       </div>
       <template v-if="book">
         <!-- PDF:保持原生 pdf.js 翻页 -->
@@ -25,22 +31,33 @@
           :initial-page="Number(initialLocation) || 1"
           @page-change="onPdfPage"
         />
-        <!-- 漫画:单图显示,自动检测横图旋转90度 -->
+        <!-- 漫画:单图显示,自动检测横图旋转90度;移动端双页横图自动切分为左右两页 -->
         <template v-else-if="book?.format === 'comic'">
           <div class="comic-page" ref="comicPageRef">
-            <img
-              ref="comicImgRef"
-              :src="comicImgSrc"
-              :class="{ 'rotate-90': comicRotate90, loaded: comicImgLoaded }"
-              @load="onComicImgLoad"
-              @error="onComicImgError"
-            />
-            <div v-if="comicImgLoaded" class="comic-rotate-btn" @click.stop="toggleComicRotate">
+            <template v-if="comicIsDoublePage">
+              <!-- 双页漫画:分别显示左/右半页 -->
+              <img
+                :src="comicSubPage === 0 ? comicLeftImage : comicRightImage"
+                class="loaded"
+                style="max-width: 100%; width: 100%; height: auto;"
+              />
+            </template>
+            <template v-else>
+              <!-- 普通单页漫画 -->
+              <img
+                ref="comicImgRef"
+                :src="comicImgSrc"
+                :class="{ 'rotate-90': comicRotate90, loaded: comicImgLoaded }"
+                @load="onComicImgLoad"
+                @error="onComicImgError"
+              />
+            </template>
+            <div v-if="comicImgLoaded && !comicIsDoublePage" class="comic-rotate-btn" @click.stop="toggleComicRotate">
               <el-icon :size="18"><Refresh /></el-icon>
             </div>
           </div>
           <!-- 点击翻页区域:旋转时整个层跟着旋转,左右点击逻辑自然对齐视觉,无需改 JS -->
-          <div class="tap-zones" :class="{ 'rotate-90': comicRotate90 }" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd" @click="onTapZoneClick">
+          <div class="tap-zones" :class="{ 'rotate-90': comicRotate90 && !comicIsDoublePage }" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd" @click="onTapZoneClick">
             <div class="tap-zone left" data-zone="left"></div>
             <div class="tap-zone center" data-zone="center"></div>
             <div class="tap-zone right" data-zone="right"></div>
@@ -144,6 +161,12 @@ const comicRotate90 = ref(false)
 const comicImgLoaded = ref(false)
 const userManualRotated = ref(false) // 用户是否手动点过旋转按钮
 const isMobile = ref(window.innerWidth < 700) // 移动端阈值
+// 双页漫画相关
+const comicIsDoublePage = ref(false) // 当前页是否是双页横向
+const comicSubPage = ref(0) // 子页:0=左半页,1=右半页
+const comicLeftImage = ref('') // 左半页图片
+const comicRightImage = ref('') // 右半页图片
+const comicOriginalImage = ref('') // 原图src
 // 从后端返回的 HTML 中提取 base64 img src
 const comicImgSrc = computed(() => {
   if (!isComic.value || !chapterHtml.value) return ''
@@ -153,18 +176,47 @@ const comicImgSrc = computed(() => {
 
 function onComicImgLoad(e: Event) {
   const img = e.target as HTMLImageElement
+  // 判断是否是双页:宽是高的1.5倍以上(并且是移动端才做分割处理)
+  const isDouble = img.naturalWidth > img.naturalHeight * 1.5
+  comicIsDoublePage.value = isDouble && isMobile.value
+  comicOriginalImage.value = comicImgSrc.value
+  // 自动旋转逻辑
   const shouldRotate = img.naturalWidth > img.naturalHeight
-  // 用户没手动改过方向时,每页自动判断(不同页可能横竖混杂)
-  // 用户一旦手动点过旋转按钮,就完全尊重用户选择,不再自动变
-  // 仅在移动端自动旋转,PC端不自动旋转
-  if (!userManualRotated.value && isMobile.value) {
+  if (!userManualRotated.value && isMobile.value && !comicIsDoublePage.value) {
     comicRotate90.value = shouldRotate
+  } else {
+    // 双页图片不自动旋转
+    comicRotate90.value = false
+  }
+  // 如果是双页,用canvas切割
+  if (comicIsDoublePage.value) {
+    splitDoublePage(img)
   }
   comicImgLoaded.value = true
 }
+
+function splitDoublePage(img: HTMLImageElement) {
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  const halfWidth = Math.floor(img.naturalWidth / 2)
+  // 切左半页
+  canvas.width = halfWidth
+  canvas.height = img.naturalHeight
+  ctx.drawImage(img, 0, 0, halfWidth, img.naturalHeight, 0, 0, halfWidth, img.naturalHeight)
+  comicLeftImage.value = canvas.toDataURL('image/jpeg', 0.95)
+  // 切右半页
+  ctx.drawImage(img, halfWidth, 0, halfWidth, img.naturalHeight, 0, 0, halfWidth, img.naturalHeight)
+  comicRightImage.value = canvas.toDataURL('image/jpeg', 0.95)
+  // 重置到左半页
+  comicSubPage.value = 0
+}
+
 function onComicImgError() {
   comicImgLoaded.value = true
+  comicIsDoublePage.value = false
 }
+
 function toggleComicRotate() {
   userManualRotated.value = true
   comicRotate90.value = !comicRotate90.value
@@ -174,19 +226,35 @@ function toggleComicRotate() {
 watch(curChapter, () => {
   if (isComic.value) {
     comicImgLoaded.value = false
+    comicIsDoublePage.value = false
+    comicSubPage.value = 0
+    comicLeftImage.value = ''
+    comicRightImage.value = ''
   }
 })
 
 const isFirstPage = computed(() => {
-  if (isComic.value) return curChapter.value <= 0
+  if (isComic.value) {
+    if (comicIsDoublePage.value) return curChapter.value <= 0 && comicSubPage.value <= 0
+    return curChapter.value <= 0
+  }
   return curChapter.value <= 0 && htmlFirstPage.value
 })
 const isLastPage = computed(() => {
-  if (isComic.value) return curChapter.value >= chapters.value.length - 1
+  if (isComic.value) {
+    if (comicIsDoublePage.value) return curChapter.value >= chapters.value.length - 1 && comicSubPage.value >= 1
+    return curChapter.value >= chapters.value.length - 1
+  }
   return curChapter.value >= chapters.value.length - 1 && htmlLastPage.value
 })
 const footbarText = computed(() => {
-  if (isComic.value) return `${chapters.value[curChapter.value]?.title || `第 ${curChapter.value + 1} 页`} · ${curChapter.value + 1}/${chapters.value.length}`
+  if (isComic.value) {
+    let pageInfo = `${curChapter.value + 1}/${chapters.value.length}`
+    if (comicIsDoublePage.value) {
+      pageInfo = `${curChapter.value + 1}${comicSubPage.value === 0 ? '左' : '右'}/${chapters.value.length}`
+    }
+    return `${chapters.value[curChapter.value]?.title || `第 ${curChapter.value + 1} 页`} · ${pageInfo}`
+  }
   return `${chapters.value[curChapter.value]?.title || `第 ${curChapter.value + 1} 章`} · ${curPage.value + 1}/${totalPages.value}`
 })
 
@@ -281,8 +349,13 @@ function updatePageFlags() {
 
 // —— 翻页(含跨章节)——
 function nextPageOrChapter() {
-  // 漫画:一页一章,直接切下一章
+  // 漫画:一页一章,如果是双页则先翻到右半页
   if (isComic.value) {
+    if (comicIsDoublePage.value && comicSubPage.value === 0) {
+      comicSubPage.value = 1
+      return
+    }
+    // 普通单页或双页的右半页 → 下一章
     if (curChapter.value < chapters.value.length - 1) {
       loadChapter(curChapter.value + 1, false)
     }
@@ -298,8 +371,13 @@ function nextPageOrChapter() {
   }
 }
 function prevPageOrChapter() {
-  // 漫画:一页一章,直接切上一章
+  // 漫画:一页一章,如果是双页则先翻到左半页
   if (isComic.value) {
+    if (comicIsDoublePage.value && comicSubPage.value === 1) {
+      comicSubPage.value = 0
+      return
+    }
+    // 普通单页或双页的左半页 → 上一章
     if (curChapter.value > 0) {
       loadChapter(curChapter.value - 1, true)
     }
