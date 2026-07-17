@@ -6,6 +6,7 @@ from datetime import date, datetime
 from sqlalchemy import (
     JSON,
     BigInteger,
+    Boolean,
     DateTime,
     Enum,
     Float,
@@ -56,6 +57,9 @@ class Book(Base):
     chapter_count: Mapped[int] = mapped_column(Integer, default=0)
     # 字数:txt/epub/mobi 精确统计;pdf/漫画无法可靠统计,保持 NULL
     word_count: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    # 漫画双页相关:是否双页横图,双页是否从右页开始
+    double_page: Mapped[bool] = mapped_column(default=False)
+    start_right: Mapped[bool] = mapped_column(default=False)
     added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

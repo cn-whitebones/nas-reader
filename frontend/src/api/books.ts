@@ -49,6 +49,8 @@ export interface BookDetail extends BookBrief {
   added_at: string
   metadata: Metadata | null
   progress: Progress | null
+  double_page: boolean
+  start_right: boolean
 }
 
 export interface Chapter {
@@ -72,6 +74,11 @@ export interface TreeNode {
   children: TreeNode[]
 }
 
+export interface BookComicSettingsUpdate {
+  double_page?: boolean
+  start_right?: boolean
+}
+
 export const booksApi = {
   list: (params: Record<string, unknown>) => http.get<Page<BookBrief>>('/books', { params }),
   tree: (source_id?: string) => http.get<TreeNode[]>('/books/tree', { params: { source_id } }),
@@ -84,4 +91,6 @@ export const booksApi = {
   getProgress: (id: string) => http.get<Progress>(`/books/${id}/progress`),
   putProgress: (id: string, p: Omit<Progress, 'updated_at'>) =>
     http.put<Progress>(`/books/${id}/progress`, p),
+  updateComicSettings: (id: string, settings: BookComicSettingsUpdate) =>
+    http.put<BookDetail>(`/books/${id}/comic_settings`, settings),
 }

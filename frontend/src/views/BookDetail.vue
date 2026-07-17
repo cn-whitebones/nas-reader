@@ -76,6 +76,27 @@
       </div>
     </div>
 
+    <!-- 漫画设置:仅漫画格式显示 -->
+    <div class="section" v-if="book.format === 'comic'">
+      <h3 class="section-title">漫画阅读设置</h3>
+      <div class="comic-settings">
+        <div class="setting-item">
+          <span class="setting-label">双页横图模式</span>
+          <el-switch
+            v-model="doublePage"
+            @change="saveComicSettings"
+          />
+        </div>
+        <div v-if="doublePage" class="setting-item">
+          <span class="setting-label">从右页开始</span>
+          <el-switch
+            v-model="startRight"
+            @change="saveComicSettings"
+          />
+        </div>
+      </div>
+    </div>
+
     <!-- 出版信息 · 用 label/value 键值列表,取代原一堆"作者:xxx" -->
     <div class="section" v-if="hasPubInfo">
       <h3 class="section-title">出版信息</h3>
@@ -190,6 +211,31 @@ const progressPct = computed(() => book.value?.progress?.percent ?? 0)
 const hasPubInfo = computed(
   () => !!(md.value?.publisher || md.value?.pub_date || md.value?.isbn || md.value?.rating || md.value?.language)
 )
+const doublePage = computed({
+  get: () => book.value?.double_page ?? false,
+  set: (v: boolean) => {
+    if (book.value) book.value.double_page = v
+  }
+})
+const startRight = computed({
+  get: () => book.value?.start_right ?? false,
+  set: (v: boolean) => {
+    if (book.value) book.value.start_right = v
+  }
+})
+async function saveComicSettings() {
+  if (!book.value) return
+  try {
+    const { data } = await booksApi.updateComicSettings(bookId, {
+      double_page: doublePage.value,
+      start_right: startRight.value,
+    })
+    book.value = data
+    ElMessage.success('漫画设置已保存')
+  } catch (e) {
+    ElMessage.error('保存失败')
+  }
+}
 
 // 字数展示:万字级用"12.3"+"万字"标签,千级用整数+"字",无数据显示 —
 const wordsMain = computed(() => {
@@ -486,6 +532,22 @@ onMounted(async () => {
 /* 文件信息:轻量单元 */
 .file-info .file-name { font-size: 14px; color: #303133; overflow-wrap: anywhere; }
 .file-info .file-path { color: #909399; font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
+
+/* 漫画设置 */
+.comic-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.setting-label {
+  font-size: 14px;
+  color: #303133;
+}
 
 /* ---------- 刮削对话框(基本沿用原样) ---------- */
 .scrape-head { display: flex; gap: 10px; margin-bottom: 16px; }

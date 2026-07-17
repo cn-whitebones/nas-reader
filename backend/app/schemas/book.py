@@ -91,6 +91,8 @@ class BookDetail(BaseModel):
     chapter_count: int
     word_count: int | None = None
     has_cover: bool = False
+    double_page: bool = False
+    start_right: bool = False
     added_at: datetime
     metadata: MetadataOut | None = None
     progress: ProgressOut | None = None
@@ -155,3 +157,9 @@ class ShelfOut(BaseModel):
 
 class ShelfBookAdd(BaseModel):
     book_id: uuid.UUID
+
+
+class BookComicSettingsUpdate(BaseModel):
+    """更新漫画双页阅读设置"""
+    double_page: bool | None = None
+    start_right: bool | None = None

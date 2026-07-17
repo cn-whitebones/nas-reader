@@ -176,21 +176,34 @@ const comicImgSrc = computed(() => {
 
 function onComicImgLoad(e: Event) {
   const img = e.target as HTMLImageElement
-  // 判断是否是双页:宽是高的1.5倍以上(并且是移动端才做分割处理)
-  const isDouble = img.naturalWidth > img.naturalHeight * 1.5
-  comicIsDoublePage.value = isDouble && isMobile.value
-  comicOriginalImage.value = comicImgSrc.value
-  // 自动旋转逻辑
-  const shouldRotate = img.naturalWidth > img.naturalHeight
-  if (!userManualRotated.value && isMobile.value && !comicIsDoublePage.value) {
-    comicRotate90.value = shouldRotate
-  } else {
-    // 双页图片不自动旋转
-    comicRotate90.value = false
+  // 如果用户已经手动旋转过,就不做任何自动处理
+  if (userManualRotated.value) {
+    comicIsDoublePage.value = false
+    comicImgLoaded.value = true
+    return
   }
-  // 如果是双页,用canvas切割
-  if (comicIsDoublePage.value) {
+  // 优先使用后端设置
+  if (book.value?.double_page) {
+    comicIsDoublePage.value = true
+    comicOriginalImage.value = comicImgSrc.value
+    comicRotate90.value = false
     splitDoublePage(img)
+    // 根据start_right决定初始子页
+    comicSubPage.value = book.value.start_right ? 1 : 0
+  } else if (isMobile.value) {
+    // 没有设置的话才自动判断单页/旋转
+    const ratio = img.naturalWidth / img.naturalHeight
+    const isDouble = ratio >= 1.2
+    comicIsDoublePage.value = isDouble
+    comicOriginalImage.value = comicImgSrc.value
+    if (isDouble) {
+      comicRotate90.value = false
+      splitDoublePage(img)
+    } else {
+      comicRotate90.value = img.naturalWidth > img.naturalHeight
+    }
+  } else {
+    comicIsDoublePage.value = false
   }
   comicImgLoaded.value = true
 }
@@ -559,6 +572,11 @@ function onVisibilityChange() {
     max-height: none;
     width: 100%;
     height: auto;
+  }
+  /* 双页图片确保足够大,竖屏显示完整 */
+  .comic-page img.loaded:not(.rotate-90) {
+    max-height: 90vh;
+    width: auto;
   }
 }
 

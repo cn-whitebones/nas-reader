@@ -18,6 +18,7 @@ from app.schemas.auth import Page
 from app.schemas.book import (
     BookBrief,
     BookDetail,
+    BookComicSettingsUpdate,
     ChapterContent,
     ChapterOut,
     MetadataOut,
@@ -186,15 +187,9 @@ async def book_tree(
     return _build_tree(rows, sources)
 
 
-@router.get("/{book_id}", response_model=BookDetail)
-async def book_detail(
-    book_id: uuid.UUID,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    book = await _get_readable_book(db, user, book_id)
+async def _detail_response(db: AsyncSession, book: Book, user_id: uuid.UUID) -> BookDetail:
     md = await db.get(BookMetadata, book.id)
-    prog = await _get_progress(db, user.id, book.id)
+    prog = await _get_progress(db, user_id, book.id)
     return BookDetail(
         id=book.id,
         source_id=book.source_id,
@@ -207,10 +202,22 @@ async def book_detail(
         chapter_count=book.chapter_count,
         word_count=book.word_count,
         has_cover=bool(book.cover_path),
+        double_page=book.double_page,
+        start_right=book.start_right,
         added_at=book.added_at,
         metadata=MetadataOut.model_validate(md) if md else None,
         progress=ProgressOut.model_validate(prog) if prog else None,
     )
+
+
+@router.get("/{book_id}", response_model=BookDetail)
+async def book_detail(
+    book_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    book = await _get_readable_book(db, user, book_id)
+    return await _detail_response(db, book, user.id)
 
 
 @router.get("/{book_id}/chapters", response_model=list[ChapterOut])
@@ -312,6 +319,23 @@ async def put_progress(
     await db.commit()
     await db.refresh(prog)
     return ProgressOut.model_validate(prog)
+
+
+@router.put("/{book_id}/comic_settings", response_model=BookDetail)
+async def update_comic_settings(
+    book_id: uuid.UUID,
+    payload: BookComicSettingsUpdate,  # type: ignore
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    book = await _get_readable_book(db, user, book_id)
+    if payload.double_page is not None:
+        book.double_page = payload.double_page
+    if payload.start_right is not None:
+        book.start_right = payload.start_right
+    await db.commit()
+    await db.refresh(book)
+    return await _detail_response(db, book)
 
 
 # ---------- 内部辅助 ----------
