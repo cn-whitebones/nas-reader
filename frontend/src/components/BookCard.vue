@@ -37,7 +37,7 @@ const wordsText = computed(() => formatWords(props.book.word_count) || '—')
 /* 真实封面保持原比例、用背景色填充留白,和生成封面等高;比例不
    对的封面四周留空,居中显示,保证网格中所有卡片高度一致 */
 .cover img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.badge { position: absolute; top: 6px; right: 6px; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px; }
+.badge { position: absolute; left: 6px; bottom: 6px; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.05em; }
 /* meta 四行固定结构:书名/作者/章节/字数,每行独立单行且高度固定,
    保证网格所有卡片视觉一致(无 chip、无 wrap、无 min-height 兜底) */
 .meta { padding: 8px 10px 10px; }

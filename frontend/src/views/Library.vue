@@ -414,8 +414,8 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 .search-input { width: 260px; }
 /* 移动端搜索框:紧凑,让筛选按钮同排显示 */
 .search-input-m { flex: 1; min-width: 0; }
-/* 移动端状态行:目录路径 + 总数,和工具栏分行,避免挤 */
-.status-m { display: none; color: #909399; font-size: 12px; margin: -8px 0 12px; }
+/* 移动端状态行:目录路径 + 总数,和工具栏分行,与工具栏留白避免紧贴 */
+.status-m { display: none; color: #909399; font-size: 12px; margin: 4px 0 14px; }
 .path { color: #909399; font-size: 13px; }
 .spacer { flex: 1; }
 .pager { margin-top: 20px; justify-content: center; }
