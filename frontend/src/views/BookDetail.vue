@@ -13,10 +13,13 @@
         <div v-if="md?.tags?.length" class="tags">
           <el-tag v-for="t in md.tags" :key="t" size="small" effect="plain" round>{{ t }}</el-tag>
         </div>
-        <!-- 阅读进度徽章:醒目呈现,替代原来纯文本 -->
-        <div v-if="progressPct > 0" class="progress">
-          <el-progress :percentage="progressPct" :stroke-width="6" :show-text="false" />
-          <span class="progress-text">已读 {{ progressPct.toFixed(1) }}%</span>
+        <!-- 阅读进度徽章:始终占位,避免按钮抖动 -->
+        <div class="progress">
+          <el-progress v-if="progressPct > 0" :percentage="progressPct" :stroke-width="6" :show-text="false" />
+          <div v-else class="placeholder-progress" />
+          <span class="progress-text" :class="{ 'text-muted': progressPct <= 0 }">
+            {{ progressPct > 0 ? `已读 ${progressPct.toFixed(1)}%` : '未开始' }}
+          </span>
         </div>
 
         <!-- 主 CTA 独占一行,次按钮 grid 均分下一行(1个占满,2个平分),
@@ -37,20 +40,18 @@
               class="cta-icon"
               :type="inShelf ? 'success' : 'default'"
               @click="toggleShelf"
-              :title="inShelf ? '已收藏' : '收藏到书架'"
             >
               <el-icon><StarFilled v-if="inShelf" /><Star v-else /></el-icon>
-              <span>{{ inShelf ? '已收藏' : '收藏' }}</span>
+              <span class="cta-icon-text">{{ inShelf ? '已收藏' : '收藏' }}</span>
             </el-button>
             <el-button
               v-if="isAdmin"
               size="large"
               class="cta-icon"
               @click="openScrapeDialog"
-              title="刮削信息"
             >
               <el-icon><Refresh /></el-icon>
-              <span>刮削</span>
+              <span class="cta-icon-text">刮削</span>
             </el-button>
           </div>
         </div>
@@ -378,10 +379,17 @@ onMounted(async () => {
 .author { color: #606266; margin: 0 0 12px; font-size: 14px; }
 .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
 
-/* 阅读进度:进度条 + 文字紧凑组合 */
+/* 阅读进度:进度条 + 文字紧凑组合,始终占位避免抖动 */
 .progress { display: flex; align-items: center; gap: 10px; margin: 6px 0 14px; }
 .progress :deep(.el-progress) { flex: 1; }
+.placeholder-progress {
+  flex: 1;
+  height: 6px;
+  background: #f0f2f5;
+  border-radius: 3px;
+}
 .progress-text { color: #67c23a; font-size: 12px; white-space: nowrap; }
+.progress-text.text-muted { color: #909399; }
 
 /* CTA 两行结构:主按钮独占,次按钮 grid 均分,避免 flex-wrap 后不对齐;
    info 用 flex 列布局,.actions 由 .info > .actions { margin-top:auto } 推到底 */
@@ -537,6 +545,7 @@ onMounted(async () => {
     min-width: 0;
     padding: 0 6px;
   }
+  .cta-icon-text { display: inline; }
   .cta-primary :deep(span),
   .cta-icon :deep(span) { font-size: 13px; }
 
@@ -558,7 +567,12 @@ onMounted(async () => {
   .provider-select { width: 100%; }
 }
 
-/* 极窄屏(<360px):指标卡改 2×2,防止 4 格挤压导致文字截断 */
+/* 极窄屏(<400px):次按钮只显示 icon,隐藏文字;指标卡 2×2 */
+@media (max-width: 400px) {
+  .cta-icon-text { display: none; }
+  .cta-icon :deep(.el-icon) { margin-right: 0 !important; }
+}
+
 @media (max-width: 360px) {
   .stats { grid-template-columns: repeat(2, 1fr); }
 }

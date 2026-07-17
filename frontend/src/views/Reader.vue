@@ -94,7 +94,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { ArrowLeft, Menu, Setting, Refresh } from '@element-plus/icons-vue'
 import { booksApi, type BookDetail, type Chapter } from '@/api/books'
 import { useReaderStore } from '@/stores/reader'
@@ -218,8 +218,13 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('pagehide', commitProgress)
-  // 离开阅读页(返回/切路由)时立即写入最新进度
+  // 离开阅读页(关闭/刷新)时立即写入最新进度
   commitProgress()
+})
+
+// 离开路由前(返回/跳转)先完成进度保存,确保 BookDetail 刷新能拿到新进度
+onBeforeRouteLeave(async () => {
+  await commitProgress()
 })
 
 async function loadChapter(idx: number, goLast = false) {
@@ -353,7 +358,7 @@ function saveProgress(location: string, percentOverride?: number) {
 }
 
 // 立即把待保存进度写入后端(无防抖);无待存内容则跳过
-function commitProgress() {
+async function commitProgress() {
   if (saveTimer) {
     clearTimeout(saveTimer)
     saveTimer = null
@@ -372,13 +377,13 @@ function commitProgress() {
     const pageFrac = totalPages.value > 0 ? (curPage.value + 1) / totalPages.value : 0
     percent = ((curChapter.value + pageFrac) / total) * 100
   }
-  booksApi
-    .putProgress(bookId, {
+  try {
+    await booksApi.putProgress(bookId, {
       location,
       percent: Math.min(Math.max(percent, 0), 100),
       chapter_idx: curChapter.value,
     })
-    .catch(() => {})
+  } catch {}
 }
 
 // 切后台/锁屏/切标签时立即兜底保存(移动端 beforeunload 不可靠,visibilitychange 才是关键)
