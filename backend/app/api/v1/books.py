@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import get_current_user
 from app.db.session import get_db
 from app.models.book import Book, BookFormat, BookMetadata, BookStatus, Chapter
-from app.models.reading import ReadingProgress
+from app.models.reading import ReadingProgress, ShelfBook
 from app.models.source import Source
 from app.models.user import User
 from app.schemas.auth import Page
@@ -63,7 +63,8 @@ async def list_books(
     word_min: int | None = Query(None, ge=0),
     word_max: int | None = Query(None, ge=0),
     has_cover: bool | None = None,
-    sort: str = Query("title", pattern="^(title|author|words|chapters|added|size)$"),
+    shelf: str | None = Query(None, pattern="^(my)$"),
+    sort: str = Query("title", pattern="^(title|author|words|chapters|added|size|shelf_added)$"),
     order: str = Query("asc", pattern="^(asc|desc)$"),
     page: int = Query(1, ge=1),
     size: int = Query(24, ge=1, le=100),
@@ -79,6 +80,15 @@ async def list_books(
         .options(selectinload(Book.book_metadata))
     )
     base = apply_book_filter(base, user, source_map)
+    # 书架过滤:shelf=my → 仅返回当前用户默认书架中的收藏
+    # 用 join(ShelfBook) 而非子查询,便于 shelf_added 排序时引用 ShelfBook.added_at
+    if shelf == "my":
+        from app.services.shelf import get_or_create_default_shelf
+
+        my_shelf = await get_or_create_default_shelf(db, user.id)
+        base = base.join(ShelfBook, ShelfBook.book_id == Book.id).where(
+            ShelfBook.shelf_id == my_shelf.id
+        )
     if source_id:
         base = base.where(Book.source_id == source_id)
     if dir_path is not None:
@@ -140,6 +150,9 @@ def _order_clauses(sort: str, order: str):
         primary = Book.added_at
     elif sort == "size":
         primary = Book.file_size
+    elif sort == "shelf_added":
+        # 需和 shelf=my join(ShelfBook) 配套使用;非 my 场景默认走 title
+        primary = ShelfBook.added_at
     else:  # title
         primary = BookMetadata.title_sort
 
