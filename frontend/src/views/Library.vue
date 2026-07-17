@@ -41,6 +41,15 @@
 
         <!-- PC:内联筛选与排序 -->
         <template v-if="!isMobile">
+          <el-input
+            v-model="keyword"
+            class="search-input"
+            placeholder="搜索书名/作者/文件名/标签"
+            clearable
+            :prefix-icon="Search"
+            @keyup.enter="onSearchSubmit"
+            @clear="onSearchSubmit"
+          />
           <el-select v-model="formatFilter" placeholder="全部格式" clearable @change="onFilterChange" style="width: 130px">
             <el-option v-for="f in FORMATS" :key="f.value" :label="f.label" :value="f.value" />
           </el-select>
@@ -56,6 +65,15 @@
 
         <!-- 移动端:精简,筛选排序收进抽屉 -->
         <template v-else>
+          <el-input
+            v-model="keyword"
+            class="search-input-m"
+            placeholder="搜索"
+            clearable
+            :prefix-icon="Search"
+            @keyup.enter="onSearchSubmit"
+            @clear="onSearchSubmit"
+          />
           <el-badge :is-dot="hasAdvancedFilter || !!formatFilter" class="filter-badge">
             <el-button :icon="Operation" @click="filterPanel = true">筛选/排序</el-button>
           </el-badge>
@@ -152,7 +170,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Grid, List, Filter, Operation, SortUp, SortDown, Files } from '@element-plus/icons-vue'
+import { Grid, List, Filter, Operation, SortUp, SortDown, Files, Search } from '@element-plus/icons-vue'
 import BookGrid from '@/components/BookGrid.vue'
 import BookList from '@/components/BookList.vue'
 import { booksApi, type BookBrief, type TreeNode } from '@/api/books'
@@ -186,6 +204,7 @@ const size = ref(24)
 const curDir = ref<string | undefined>(undefined)
 const curSource = ref<string | undefined>(undefined)
 const formatFilter = ref<string | undefined>(undefined)
+const keyword = ref('')
 const sort = ref('title')
 const order = ref<'asc' | 'desc'>('asc')
 const chapterMin = ref<number | undefined>(undefined)
@@ -242,6 +261,7 @@ function restoreFromQuery() {
   curDir.value = typeof q.dir === 'string' ? q.dir : undefined
   curSource.value = typeof q.source === 'string' ? q.source : undefined
   formatFilter.value = typeof q.format === 'string' ? q.format : undefined
+  keyword.value = typeof q.q === 'string' ? q.q : ''
   if (typeof q.sort === 'string') sort.value = q.sort
   if (q.order === 'asc' || q.order === 'desc') order.value = q.order
   chapterMin.value = q.cmin != null ? Number(q.cmin) : undefined
@@ -258,6 +278,7 @@ function syncQuery() {
   if (curDir.value) q.dir = curDir.value
   if (curSource.value) q.source = curSource.value
   if (formatFilter.value) q.format = formatFilter.value
+  if (keyword.value.trim()) q.q = keyword.value.trim()
   if (sort.value !== 'title') q.sort = sort.value
   if (order.value !== 'asc') q.order = order.value
   if (chapterMin.value != null) q.cmin = String(chapterMin.value)
@@ -277,6 +298,7 @@ async function reload() {
     dir_path: curDir.value,
     source_id: curSource.value,
     format: formatFilter.value,
+    q: keyword.value.trim() || undefined,
     sort: sort.value,
     order: order.value,
     chapter_min: chapterMin.value,
@@ -313,6 +335,11 @@ function onPage(p: number) {
 }
 
 function onFilterChange() {
+  page.value = 1
+  reload()
+}
+
+function onSearchSubmit() {
   page.value = 1
   reload()
 }
@@ -380,6 +407,11 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 .content { flex: 1; min-width: 0; overflow-y: auto; padding-bottom: 40px; }
 .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
 .tree-toggle { display: none; }
+/* PC 搜索框:占据工具栏左侧,给筛选/排序留位置;flex-grow 让它自适应
+   剩余宽度,但设 max-width 免得筛选按钮被挤到下一行 */
+.search-input { width: 260px; }
+/* 移动端搜索框:紧凑,让筛选按钮同排显示 */
+.search-input-m { flex: 1; min-width: 120px; }
 .path { color: #909399; font-size: 13px; }
 .path-m { color: #909399; font-size: 13px; }
 .spacer { flex: 1; }

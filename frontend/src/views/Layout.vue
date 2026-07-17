@@ -6,7 +6,6 @@
       <el-menu mode="horizontal" :router="true" :default-active="activeMenu" class="nav desktop-only">
         <el-menu-item index="/library">书库</el-menu-item>
         <el-menu-item index="/shelves">书架</el-menu-item>
-        <el-menu-item index="/search">搜索</el-menu-item>
         <el-menu-item v-if="auth.isAdmin" index="/admin">管理</el-menu-item>
       </el-menu>
       <span class="spacer mobile-only"></span>
@@ -62,7 +61,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
-import { ArrowDown, Reading, Collection, Search, Setting } from '@element-plus/icons-vue'
+import { ArrowDown, Reading, Collection, Setting } from '@element-plus/icons-vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
@@ -87,7 +86,6 @@ const tabs = computed(() => {
   const base = [
     { path: '/library', label: '书库', icon: Reading },
     { path: '/shelves', label: '书架', icon: Collection },
-    { path: '/search', label: '搜索', icon: Search },
   ]
   if (auth.isAdmin) base.push({ path: '/admin', label: '管理', icon: Setting })
   return base

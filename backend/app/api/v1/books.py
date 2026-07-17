@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, Response, StreamingResponse
-from sqlalchemy import func, select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -57,6 +57,7 @@ async def list_books(
     source_id: uuid.UUID | None = None,
     dir_path: str | None = None,
     format: BookFormat | None = None,
+    q: str | None = Query(None, max_length=200),
     chapter_min: int | None = Query(None, ge=0),
     chapter_max: int | None = Query(None, ge=0),
     word_min: int | None = Query(None, ge=0),
@@ -84,6 +85,20 @@ async def list_books(
         base = base.where(Book.dir_path == dir_path)
     if format:
         base = base.where(Book.format == format)
+    # 关键字模糊匹配:文件名 + 元数据(标题/作者/描述/出版社/标签)
+    # 作者/标签为 JSON 数组,序列化为文本后整体 LIKE,个人库量级足够
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        base = base.where(
+            or_(
+                func.lower(Book.file_name).like(like.lower()),
+                func.lower(BookMetadata.title).like(like.lower()),
+                func.lower(BookMetadata.description).like(like.lower()),
+                func.lower(BookMetadata.publisher).like(like.lower()),
+                func.lower(cast(BookMetadata.authors, String)).like(like.lower()),
+                func.lower(cast(BookMetadata.tags, String)).like(like.lower()),
+            )
+        )
     # 章节数范围
     if chapter_min is not None:
         base = base.where(Book.chapter_count >= chapter_min)

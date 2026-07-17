@@ -85,8 +85,3 @@ export const booksApi = {
   putProgress: (id: string, p: Omit<Progress, 'updated_at'>) =>
     http.put<Progress>(`/books/${id}/progress`, p),
 }
-
-export const searchApi = {
-  search: (q: string, params: Record<string, unknown> = {}) =>
-    http.get<Page<BookBrief>>('/search', { params: { q, ...params } }),
-}
