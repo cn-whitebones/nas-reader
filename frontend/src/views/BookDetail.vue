@@ -1,41 +1,106 @@
 <template>
   <div v-if="book" class="detail">
+    <!-- 顶部主区:封面 + 标题 + 作者 + CTA -->
     <div class="hero">
       <div class="cover">
         <CoverImage v-if="book.has_cover" :book-id="bookId" :alt="title" />
         <GeneratedCover v-else :title="title || book.file_name" :format="book.format" />
       </div>
       <div class="info">
-        <h1>{{ title }}</h1>
+        <h1 class="book-title">{{ title }}</h1>
         <p v-if="md?.subtitle" class="subtitle">{{ md.subtitle }}</p>
-        <p class="line"><b>作者:</b>{{ md?.authors?.join(', ') || '未知' }}</p>
-        <p v-if="md?.publisher" class="line"><b>出版社:</b>{{ md.publisher }}</p>
-        <p v-if="md?.pub_date" class="line"><b>出版:</b>{{ md.pub_date }}</p>
-        <p v-if="md?.isbn" class="line"><b>ISBN:</b>{{ md.isbn }}</p>
-        <p v-if="md?.rating" class="line"><b>评分:</b>{{ md.rating }}</p>
+        <p class="author">{{ md?.authors?.join(', ') || '未知作者' }}</p>
         <div v-if="md?.tags?.length" class="tags">
-          <el-tag v-for="t in md.tags" :key="t" size="small" effect="plain">{{ t }}</el-tag>
+          <el-tag v-for="t in md.tags" :key="t" size="small" effect="plain" round>{{ t }}</el-tag>
         </div>
-        <p class="line"><b>格式:</b>{{ book.format.toUpperCase() }} · {{ (book.file_size / 1024 / 1024).toFixed(1) }} MB · {{ book.chapter_count }} 章</p>
-        <p v-if="book.progress && book.progress.percent > 0" class="line">
-          <b>进度:</b>{{ book.progress.percent.toFixed(1) }}%
-        </p>
+        <!-- 阅读进度徽章:醒目呈现,替代原来纯文本 -->
+        <div v-if="progressPct > 0" class="progress">
+          <el-progress :percentage="progressPct" :stroke-width="6" :show-text="false" />
+          <span class="progress-text">已读 {{ progressPct.toFixed(1) }}%</span>
+        </div>
 
+        <!-- 主 CTA:阅读按钮突出,收藏 icon 化 -->
         <div class="actions">
-          <el-button type="primary" size="large" class="act-btn" @click="$router.push(`/read/${book.id}`)">
-            {{ book.progress && book.progress.percent > 0 ? '继续阅读' : '开始阅读' }}
+          <el-button type="primary" size="large" class="cta-read" @click="$router.push(`/read/${book.id}`)">
+            <el-icon><Reading /></el-icon>
+            {{ progressPct > 0 ? '继续阅读' : '开始阅读' }}
           </el-button>
-          <el-button size="large" class="act-btn" @click="openScrapeDialog" v-if="isAdmin">刮削信息</el-button>
-          <el-button size="large" class="act-btn" :type="inShelf ? 'success' : 'default'" @click="toggleShelf">
-            {{ inShelf ? '已收藏' : '收藏到书架' }}
+          <el-button
+            size="large"
+            class="cta-icon"
+            :type="inShelf ? 'success' : 'default'"
+            @click="toggleShelf"
+            :title="inShelf ? '已收藏' : '收藏到书架'"
+          >
+            <el-icon><StarFilled v-if="inShelf" /><Star v-else /></el-icon>
+            <span class="cta-icon-label">{{ inShelf ? '已收藏' : '收藏' }}</span>
+          </el-button>
+          <el-button v-if="isAdmin" size="large" class="cta-icon" @click="openScrapeDialog" title="刮削信息">
+            <el-icon><Refresh /></el-icon>
+            <span class="cta-icon-label">刮削</span>
           </el-button>
         </div>
       </div>
     </div>
 
-    <div v-if="md?.description" class="description">
-      <h3>简介</h3>
-      <p>{{ md.description }}</p>
+    <!-- 指标卡片:字数 / 章节 / 大小 / 格式 · 4 格网格,替代原来一行文本 -->
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value">{{ wordsMain }}</div>
+        <div class="stat-label">{{ wordsLabel }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">{{ book.chapter_count || '—' }}</div>
+        <div class="stat-label">章节</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">{{ sizeMain }}</div>
+        <div class="stat-label">{{ sizeLabel }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">{{ book.format.toUpperCase() }}</div>
+        <div class="stat-label">格式</div>
+      </div>
+    </div>
+
+    <!-- 出版信息 · 用 label/value 键值列表,取代原一堆"作者:xxx" -->
+    <div class="section" v-if="hasPubInfo">
+      <h3 class="section-title">出版信息</h3>
+      <dl class="kv">
+        <template v-if="md?.publisher">
+          <dt>出版社</dt><dd>{{ md.publisher }}</dd>
+        </template>
+        <template v-if="md?.pub_date">
+          <dt>出版日期</dt><dd>{{ md.pub_date }}</dd>
+        </template>
+        <template v-if="md?.isbn">
+          <dt>ISBN</dt><dd class="mono">{{ md.isbn }}</dd>
+        </template>
+        <template v-if="md?.rating">
+          <dt>评分</dt><dd>{{ md.rating }}</dd>
+        </template>
+        <template v-if="md?.language">
+          <dt>语言</dt><dd>{{ md.language }}</dd>
+        </template>
+      </dl>
+    </div>
+
+    <!-- 简介 -->
+    <div v-if="md?.description" class="section">
+      <h3 class="section-title">简介</h3>
+      <p class="description" :class="{ collapsed: !descExpanded && descOverflowable }">{{ md.description }}</p>
+      <button v-if="descOverflowable" class="expand-btn" @click="descExpanded = !descExpanded">
+        {{ descExpanded ? '收起' : '展开全部' }}
+      </button>
+    </div>
+
+    <!-- 文件信息 · 极简放最后,给需要的人用 -->
+    <div class="section file-info">
+      <h3 class="section-title">文件</h3>
+      <div class="file-row">
+        <span class="file-name">{{ book.file_name }}</span>
+      </div>
+      <div v-if="book.dir_path" class="file-path">{{ book.dir_path }}</div>
     </div>
 
     <!-- 刮削对话框 -->
@@ -87,6 +152,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Reading, Refresh, Star, StarFilled } from '@element-plus/icons-vue'
 import { booksApi, type BookDetail } from '@/api/books'
 import { shelvesApi } from '@/api/shelves'
 import { scrapeApi, type Candidate } from '@/api/admin'
@@ -104,6 +170,34 @@ const book = ref<BookDetail | null>(null)
 const md = computed(() => book.value?.metadata)
 const title = computed(() => md.value?.title || book.value?.file_name || '')
 const inShelf = ref(false)
+const descExpanded = ref(false)
+// 简介长度>240 才需要展开按钮;短简介直接完整显示,避免误增交互
+const descOverflowable = computed(() => (md.value?.description || '').length > 240)
+const progressPct = computed(() => book.value?.progress?.percent ?? 0)
+const hasPubInfo = computed(
+  () => !!(md.value?.publisher || md.value?.pub_date || md.value?.isbn || md.value?.rating || md.value?.language)
+)
+
+// 字数展示:万字级用"12.3"+"万字"标签,千级用整数+"字",无数据显示 —
+const wordsMain = computed(() => {
+  const n = book.value?.word_count
+  if (!n) return '—'
+  if (n >= 10000) return (n / 10000).toFixed(1)
+  return String(n)
+})
+const wordsLabel = computed(() => {
+  const n = book.value?.word_count
+  if (!n) return '字数'
+  return n >= 10000 ? '万字' : '字'
+})
+
+// 文件大小:MB 主体,KB 也自适应,不再把单位塞进"值"里
+const sizeMain = computed(() => {
+  const s = book.value?.file_size || 0
+  if (s >= 1024 * 1024) return (s / 1024 / 1024).toFixed(1)
+  return (s / 1024).toFixed(0)
+})
+const sizeLabel = computed(() => ((book.value?.file_size || 0) >= 1024 * 1024 ? 'MB' : 'KB'))
 
 const scrapeDialog = ref(false)
 const scrapeKeyword = ref('')
@@ -130,7 +224,6 @@ const manualForm = reactive({
 function openScrapeDialog() {
   scrapeDialog.value = true
   editTab.value = 'scrape'
-  // 回填当前元数据到表单
   if (md.value) {
     manualForm.title = md.value.title || ''
     manualForm.subtitle = md.value.subtitle || ''
@@ -146,14 +239,8 @@ function openScrapeDialog() {
 async function saveManualEdit() {
   scraping.value = true
   try {
-    const tags = manualForm.tags
-      .split(/[,，]/)
-      .map((t) => t.trim())
-      .filter(Boolean)
-    const authors = manualForm.authors
-      .split(/[,，]/)
-      .map((a) => a.trim())
-      .filter(Boolean)
+    const tags = manualForm.tags.split(/[,,]/).map((t) => t.trim()).filter(Boolean)
+    const authors = manualForm.authors.split(/[,,]/).map((a) => a.trim()).filter(Boolean)
     await scrapeApi.updateMetadata(bookId, {
       title: manualForm.title || undefined,
       subtitle: manualForm.subtitle || undefined,
@@ -166,7 +253,7 @@ async function saveManualEdit() {
     })
     ElMessage.success('已保存')
     scrapeDialog.value = false
-    await load() // 刷新详情页
+    await load()
   } catch (e: any) {
     ElMessage.error(e.response?.data?.detail || '保存失败')
   } finally {
@@ -233,18 +320,135 @@ onMounted(async () => {
 
 <style scoped>
 .detail { max-width: 900px; margin: 0 auto; }
-.hero { display: flex; gap: 24px; background: #fff; padding: 24px; border-radius: 8px; }
-.cover { width: 180px; flex-shrink: 0; align-self: flex-start; aspect-ratio: 3/4; border-radius: 6px; overflow: hidden; background: #eef1f6; }
-.cover img { width: 100%; height: 100%; object-fit: cover; }
-.info { flex: 1; min-width: 0; }
-.info h1 { margin: 0 0 8px; font-size: 22px; }
-.subtitle { color: #909399; margin: 0 0 12px; }
-.line { margin: 6px 0; font-size: 14px; color: #606266; }
-.tags { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
-.actions { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-.act-btn { margin: 0; }
-.description { background: #fff; padding: 24px; border-radius: 8px; margin-top: 16px; }
-.description p { color: #606266; line-height: 1.8; white-space: pre-wrap; }
+
+/* ---------- Hero:PC 横排,移动端纵向 ---------- */
+.hero {
+  display: flex;
+  gap: 24px;
+  background: #fff;
+  padding: 24px;
+  border-radius: 8px;
+}
+.cover {
+  width: 180px;
+  flex-shrink: 0;
+  align-self: flex-start;
+  aspect-ratio: 3/4;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #eef1f6;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+.cover :deep(img) { width: 100%; height: 100%; object-fit: cover; }
+.info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.book-title {
+  margin: 0 0 6px;
+  font-size: 22px;
+  line-height: 1.35;
+  color: #1f2329;
+  overflow-wrap: anywhere;
+}
+.subtitle { color: #909399; margin: 0 0 8px; font-size: 14px; }
+.author { color: #606266; margin: 0 0 12px; font-size: 14px; }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+
+/* 阅读进度:进度条 + 文字紧凑组合 */
+.progress { display: flex; align-items: center; gap: 10px; margin: 6px 0 14px; }
+.progress :deep(.el-progress) { flex: 1; }
+.progress-text { color: #67c23a; font-size: 12px; white-space: nowrap; }
+
+/* CTA:主按钮宽,次按钮 icon+文字紧凑 */
+.actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: auto; }
+.cta-read { flex: 1; min-width: 160px; font-weight: 600; }
+.cta-read :deep(.el-icon) { margin-right: 4px; }
+.cta-icon { padding: 0 14px; }
+.cta-icon :deep(.el-icon) { margin-right: 4px; }
+
+/* ---------- 指标卡片:4 格网格 ---------- */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  background: #fff;
+  padding: 16px;
+  border-radius: 8px;
+  margin-top: 12px;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 4px;
+  border-radius: 6px;
+  background: #f7f9fc;
+  min-height: 68px;
+}
+.stat-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2329;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+.stat-label { font-size: 12px; color: #909399; margin-top: 4px; }
+
+/* ---------- 通用 section ---------- */
+.section {
+  background: #fff;
+  padding: 20px 24px;
+  border-radius: 8px;
+  margin-top: 12px;
+}
+.section-title {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+
+/* 键值对列表:PC 双列,移动端单列;label 灰色右对齐(单列时左对齐) */
+.kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 20px;
+  margin: 0;
+  font-size: 14px;
+}
+.kv dt { color: #909399; }
+.kv dd { margin: 0; color: #303133; overflow-wrap: anywhere; }
+.kv .mono { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; }
+
+/* 简介:折叠状态最多 5 行,展开去限制 */
+.description {
+  color: #606266;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.description.collapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.expand-btn {
+  background: none;
+  border: none;
+  padding: 8px 0 0;
+  color: var(--el-color-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* 文件信息:轻量单元 */
+.file-info .file-name { font-size: 14px; color: #303133; overflow-wrap: anywhere; }
+.file-info .file-path { color: #909399; font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
+
+/* ---------- 刮削对话框(基本沿用原样) ---------- */
 .scrape-head { display: flex; gap: 10px; margin-bottom: 16px; }
 .kw-input { flex: 1; min-width: 0; }
 .provider-select { width: 160px; }
@@ -257,13 +461,48 @@ onMounted(async () => {
 .cand-sub { font-size: 13px; color: #909399; margin: 4px 0; overflow-wrap: anywhere; }
 .cand-desc { font-size: 12px; color: #b0b3b8; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-@media (max-width: 600px) {
-  .hero { flex-direction: column; align-items: center; }
-  .cover { width: 140px; align-self: center; }
-  /* 搜索栏纵向堆叠,避免横向挤压 */
+/* ---------- 移动端 ---------- */
+@media (max-width: 700px) {
+  .hero {
+    padding: 16px;
+    gap: 14px;
+    /* 保持横排:小封面 + 右侧标题,不再纵向堆叠导致底部大量空白 */
+    align-items: flex-start;
+  }
+  .cover { width: 96px; border-radius: 4px; }
+  .book-title { font-size: 17px; margin-bottom: 4px; }
+  .subtitle { font-size: 12px; margin-bottom: 4px; }
+  .author { font-size: 13px; margin-bottom: 8px; }
+  .tags { margin-bottom: 8px; }
+  .progress { margin: 4px 0 10px; }
+  /* CTA:主按钮占满行,次按钮同一行图标+短文字,不需再堆栈 */
+  .actions { gap: 8px; }
+  .cta-read { flex: 1 1 100%; }
+  .cta-icon { flex: 1; padding: 0 6px; min-width: 0; }
+  .cta-icon-label { font-size: 13px; }
+
+  /* 指标卡:小屏收紧 padding,数字略缩;仍保持 4 格 */
+  .stats { padding: 12px; gap: 6px; }
+  .stat { padding: 10px 2px; min-height: 62px; }
+  .stat-value { font-size: 17px; }
+  .stat-label { font-size: 11px; }
+
+  .section { padding: 16px; }
+  .section-title { font-size: 15px; margin-bottom: 10px; }
+
+  /* 键值对:移动端切单列,dt/dd 上下堆叠观感清爽 */
+  .kv { grid-template-columns: 1fr; gap: 4px 0; }
+  .kv dt { margin-top: 8px; font-size: 12px; }
+  .kv dt:first-child { margin-top: 0; }
+
   .scrape-head { flex-direction: column; }
   .provider-select { width: 100%; }
-  /* 操作按钮移动端各占一行,高度一致不尴尬换行 */
-  .actions { flex-direction: column; align-items: stretch; }
+}
+
+/* 极窄屏(<360px):指标卡改 2×2,防止 4 格挤压导致文字截断 */
+@media (max-width: 360px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  /* 3 个 CTA 时,收藏/刮削挤;直接让"收藏"独占一行,刮削管理员才有,行数适度 */
+  .cta-icon { flex: 1 1 45%; }
 }
 </style>

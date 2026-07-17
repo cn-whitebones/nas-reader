@@ -205,6 +205,7 @@ async def book_detail(
         file_size=book.file_size,
         status=book.status,
         chapter_count=book.chapter_count,
+        word_count=book.word_count,
         has_cover=bool(book.cover_path),
         added_at=book.added_at,
         metadata=MetadataOut.model_validate(md) if md else None,

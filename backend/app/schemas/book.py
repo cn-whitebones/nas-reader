@@ -89,6 +89,7 @@ class BookDetail(BaseModel):
     file_size: int
     status: BookStatus
     chapter_count: int
+    word_count: int | None = None
     has_cover: bool = False
     added_at: datetime
     metadata: MetadataOut | None = None
