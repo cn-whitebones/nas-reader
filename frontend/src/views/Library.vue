@@ -60,10 +60,14 @@
 
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Grid, List } from '@element-plus/icons-vue'
 import BookGrid from '@/components/BookGrid.vue'
 import BookList from '@/components/BookList.vue'
 import { booksApi, type BookBrief, type TreeNode } from '@/api/books'
+
+const route = useRoute()
+const router = useRouter()
 
 const treeData = ref<any[]>([])
 const books = ref<BookBrief[]>([])
@@ -79,6 +83,25 @@ const viewMode = ref<'grid' | 'list'>(
 )
 watch(viewMode, (v) => localStorage.setItem('library_view_mode', v))
 
+// 从 URL query 恢复浏览状态:右滑返回/刷新/分享后可回到原先的翻页与筛选
+function restoreFromQuery() {
+  const q = route.query
+  page.value = Math.max(1, Number(q.page) || 1)
+  curDir.value = typeof q.dir === 'string' ? q.dir : undefined
+  curSource.value = typeof q.source === 'string' ? q.source : undefined
+  formatFilter.value = typeof q.format === 'string' ? q.format : undefined
+}
+
+// 把当前浏览状态写回 URL query(replace 避免污染历史栈)
+function syncQuery() {
+  const q: Record<string, string> = {}
+  if (page.value > 1) q.page = String(page.value)
+  if (curDir.value) q.dir = curDir.value
+  if (curSource.value) q.source = curSource.value
+  if (formatFilter.value) q.format = formatFilter.value
+  router.replace({ query: q })
+}
+
 function decorate(nodes: TreeNode[]): any[] {
   return nodes.map((n) => ({
     ...n,
@@ -93,6 +116,7 @@ async function loadTree() {
 }
 
 async function reload() {
+  syncQuery()
   const { data } = await booksApi.list({
     page: page.value,
     size: size.value,
@@ -118,6 +142,7 @@ function onPage(p: number) {
 }
 
 onMounted(async () => {
+  restoreFromQuery()
   await Promise.all([loadTree(), reload()])
 })
 </script>

@@ -30,9 +30,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import BookGrid from '@/components/BookGrid.vue'
 import { searchApi, type BookBrief } from '@/api/books'
+
+const route = useRoute()
+const router = useRouter()
 
 const keyword = ref('')
 const books = ref<BookBrief[]>([])
@@ -41,18 +45,44 @@ const page = ref(1)
 const size = ref(24)
 const searched = ref(false)
 
-async function doSearch() {
-  if (!keyword.value.trim()) return
-  const { data } = await searchApi.search(keyword.value.trim(), { page: page.value, size: size.value })
+// 把查询条件写回 URL,右滑返回/刷新后可复现搜索结果
+function syncQuery() {
+  const q: Record<string, string> = { q: keyword.value.trim() }
+  if (page.value > 1) q.page = String(page.value)
+  router.replace({ query: q })
+}
+
+async function runQuery() {
+  const kw = keyword.value.trim()
+  if (!kw) return
+  const { data } = await searchApi.search(kw, { page: page.value, size: size.value })
   books.value = data.items
   total.value = data.total
   searched.value = true
 }
 
+// 用户点击「搜索」或回车:重置到第一页
+function doSearch() {
+  if (!keyword.value.trim()) return
+  page.value = 1
+  syncQuery()
+  runQuery()
+}
+
 function onPage(p: number) {
   page.value = p
-  doSearch()
+  syncQuery()
+  runQuery()
 }
+
+onMounted(() => {
+  const q = route.query
+  if (typeof q.q === 'string' && q.q.trim()) {
+    keyword.value = q.q
+    page.value = Math.max(1, Number(q.page) || 1)
+    runQuery()
+  }
+})
 </script>
 
 <style scoped>
