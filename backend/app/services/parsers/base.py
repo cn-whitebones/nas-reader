@@ -46,6 +46,34 @@ class ParsedBook:
     title: str | None = None
     authors: list[str] = field(default_factory=list)
     language: str | None = None
+    # 字数:txt/epub/mobi 统计;pdf/漫画无法可靠统计,保持 None
+    word_count: int | None = None
+
+
+def count_words(text: str) -> int:
+    """统计正文字数:中文按字符计,英文按单词计。
+
+    去除空白后,CJK 字符逐字计数,连续的非 CJK(英文/数字)串按空白切词计数。
+    这样中英文混排都能得到贴近直觉的「字数」。
+    """
+    if not text:
+        return 0
+    cjk = 0
+    latin_runs = 0
+    in_run = False
+    for ch in text:
+        if ch.isspace():
+            in_run = False
+            continue
+        # CJK 统一表意文字及扩展、假名等主要区段
+        if "㐀" <= ch <= "鿿" or "豈" <= ch <= "﫿" or "぀" <= ch <= "ヿ":
+            cjk += 1
+            in_run = False
+        else:
+            if not in_run:
+                latin_runs += 1
+                in_run = True
+    return cjk + latin_runs
 
 
 class BaseParser(ABC):

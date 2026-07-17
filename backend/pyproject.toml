@@ -24,6 +24,7 @@ dependencies = [
     "xxhash>=3.4",
     "pillow>=10.3",
     "mobi>=0.3",  # MOBI 格式解析
+    "pypinyin>=0.51",  # 中文书名/作者拼音排序键
 ]
 
 [project.optional-dependencies]

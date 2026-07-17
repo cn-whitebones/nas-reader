@@ -71,6 +71,8 @@ class BookBrief(BaseModel):
     format: BookFormat
     status: BookStatus
     chapter_count: int
+    word_count: int | None = None
+    file_size: int = 0
     has_cover: bool = False
     title: str | None = None
     authors: list[str] = []

@@ -13,6 +13,7 @@
         </div>
         <div class="book-meta secondary">
           <span>{{ b.chapter_count }} 章</span>
+          <span v-if="b.word_count">{{ formatWords(b.word_count) }}</span>
           <span v-if="b.status === 'missing'" class="missing">文件缺失</span>
         </div>
       </div>
@@ -24,6 +25,7 @@
 <script setup lang="ts">
 import CoverImage from './CoverImage.vue'
 import type { BookBrief } from '@/api/books'
+import { formatWords } from '@/utils/format'
 
 defineProps<{ books: BookBrief[] }>()
 </script>

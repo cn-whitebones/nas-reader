@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import warnings
 
-from app.services.parsers.base import BaseParser, ParsedBook, ParsedChapter
+from app.services.parsers.base import BaseParser, ParsedBook, ParsedChapter, count_words
 
 # ebooklib 会对未来版本弃用发出噪音警告,静默
 warnings.filterwarnings("ignore", category=UserWarning, module="ebooklib")
@@ -48,6 +48,9 @@ class EpubParser(BaseParser):
         if not chapters:
             chapters = self._chapters_from_spine(book)
         result.chapters = chapters
+
+        # 字数:累加所有文档 item 的纯文本
+        result.word_count = self._count_words(book, ebooklib)
         return result
 
     def read_chapter(
@@ -75,6 +78,23 @@ class EpubParser(BaseParser):
         return clean_html_body(html)
 
     # ---------- 内部 ----------
+    def _count_words(self, book, ebooklib) -> int | None:
+        """累加所有文档 item 的纯文本字数;失败返回 None。"""
+        try:
+            from bs4 import BeautifulSoup
+
+            total = 0
+            for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
+                try:
+                    html = item.get_content().decode("utf-8", errors="replace")
+                    text = BeautifulSoup(html, "lxml").get_text(" ")
+                    total += count_words(text)
+                except Exception:
+                    continue
+            return total or None
+        except Exception:
+            return None
+
     def _extract_cover(self, book, ebooklib) -> bytes | None:
         try:
             covers = list(book.get_items_of_type(ebooklib.ITEM_COVER))

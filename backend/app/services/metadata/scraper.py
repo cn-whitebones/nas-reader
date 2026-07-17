@@ -12,6 +12,7 @@ from app.services.metadata.base import MetadataCandidate, MetadataProvider
 from app.services.metadata.douban import DoubanProvider
 from app.services.metadata.google import GoogleBooksProvider
 from app.services.metadata.openlibrary import OpenLibraryProvider
+from app.services.sortkey import authors_sort_key, to_sort_key
 from app.services.scanner.covers import save_cover
 
 # 降级顺序:豆瓣(中文书友好但不稳定)→ Google → Open Library
@@ -83,6 +84,9 @@ async def apply_candidate(db, book_id: uuid.UUID, candidate: MetadataCandidate) 
     md.douban_id = candidate.external_id if candidate.provider == MetadataProviderName.douban else md.douban_id
     md.source_provider = candidate.provider
     md.scraped_at = datetime.now(timezone.utc)
+    # 同步拼音排序键(书库按名称/作者排序用)
+    md.title_sort = to_sort_key(md.title or "")
+    md.author_sort = authors_sort_key(md.authors)
 
     # 下载封面(失败忽略)
     if candidate.cover_url:

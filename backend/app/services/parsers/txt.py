@@ -16,7 +16,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-from app.services.parsers.base import BaseParser, ParsedBook, ParsedChapter
+from app.services.parsers.base import BaseParser, ParsedBook, ParsedChapter, count_words
 
 _NUM = "[0-9零〇一二三四五六七八九十百千两]"
 # 强模式:第X章/回/…
@@ -95,7 +95,7 @@ class TxtParser(BaseParser):
                 chunk_head = text[i : i + 40].strip().splitlines()
                 title = (chunk_head[0][:40] if chunk_head else "") or f"第 {i // _FALLBACK_CHUNK + 1} 节"
                 chapters.append(ParsedChapter(idx=len(chapters), title=title, location=str(i)))
-        return ParsedBook(chapters=chapters)
+        return ParsedBook(chapters=chapters, word_count=count_words(text))
 
     @staticmethod
     def _detect_chapters(text: str) -> list[ParsedChapter]:
