@@ -1,12 +1,26 @@
 <template>
   <div class="library">
+    <!-- 移动端侧栏遮罩:点击外部区域收起 -->
+    <div v-if="mobileTreeOpen && isMobile" class="sidebar-mask" @click="mobileTreeOpen = false"></div>
+
     <!-- 左侧目录树 -->
     <aside class="sidebar" :class="{ open: mobileTreeOpen }">
       <div class="sidebar-head">
         <span>目录</span>
         <el-button link @click="mobileTreeOpen = false" class="close-tree">收起</el-button>
       </div>
+      <!-- 全部图书入口:清空目录/源筛选,回到全部 -->
+      <div
+        class="all-books"
+        :class="{ active: !curDir && !curSource }"
+        @click="onSelectAll"
+      >
+        <el-icon><Files /></el-icon>
+        <span>全部图书</span>
+        <span class="cnt">({{ allBooksCount }})</span>
+      </div>
       <el-tree
+        ref="treeRef"
         :data="treeData"
         :props="{ label: 'name', children: 'children' }"
         node-key="key"
@@ -137,8 +151,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Grid, List, Filter, Operation, SortUp, SortDown } from '@element-plus/icons-vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Grid, List, Filter, Operation, SortUp, SortDown, Files } from '@element-plus/icons-vue'
 import BookGrid from '@/components/BookGrid.vue'
 import BookList from '@/components/BookList.vue'
 import { booksApi, type BookBrief, type TreeNode } from '@/api/books'
@@ -164,6 +178,7 @@ const SORTS = [
 ]
 
 const treeData = ref<any[]>([])
+const treeRef = ref<any>(null)
 const books = ref<BookBrief[]>([])
 const total = ref(0)
 const page = ref(1)
@@ -189,6 +204,8 @@ const viewMode = ref<'grid' | 'list'>(
 const isMobile = ref(window.innerWidth <= 700)
 function onResize() {
   isMobile.value = window.innerWidth <= 700
+  // 桌面态强制关闭移动端抽屉,避免残留 mask
+  if (!isMobile.value) mobileTreeOpen.value = false
 }
 
 const hasAdvancedFilter = computed(
@@ -198,6 +215,11 @@ const hasAdvancedFilter = computed(
     wordMinW.value != null ||
     wordMaxW.value != null ||
     coverFilter.value !== undefined
+)
+
+// 顶层节点 book_count 求和 = 全部图书数(和后端 tree 一致)
+const allBooksCount = computed(() =>
+  treeData.value.reduce((s, n: any) => s + (n.book_count || 0), 0)
 )
 
 function decorate(nodes: TreeNode[]): any[] {
@@ -275,6 +297,16 @@ function onNodeClick(node: any) {
   reload()
 }
 
+// 点击"全部图书":清空目录/源筛选,清除 el-tree 当前高亮
+function onSelectAll() {
+  curSource.value = undefined
+  curDir.value = undefined
+  page.value = 1
+  mobileTreeOpen.value = false
+  nextTick(() => treeRef.value?.setCurrentKey?.(null))
+  reload()
+}
+
 function onPage(p: number) {
   page.value = p
   reload()
@@ -327,9 +359,23 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 
 <style scoped>
 .library { display: flex; gap: 16px; height: 100%; }
+.sidebar-mask {
+  display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4);
+  z-index: 99;
+}
 .sidebar { width: 260px; flex-shrink: 0; background: #fff; border-radius: 8px; padding: 12px; overflow-y: auto; }
 .sidebar-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 600; }
 .close-tree { display: none; }
+/* 全部图书入口:替代过去无法退出目录筛选的问题 */
+.all-books {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 8px; margin-bottom: 6px;
+  cursor: pointer; border-radius: 4px; font-size: 14px; color: #303133;
+  transition: background 0.15s;
+}
+.all-books:hover { background: #f5f7fa; }
+.all-books.active { background: #ecf5ff; color: #409eff; }
+.all-books .cnt { margin-left: auto; }
 .cnt { color: #c0c4cc; font-size: 12px; }
 .content { flex: 1; min-width: 0; overflow-y: auto; padding-bottom: 40px; }
 .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -351,6 +397,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 .hint { font-size: 12px; color: #a0a4ac; }
 
 @media (max-width: 700px) {
+  .sidebar-mask { display: block; }
   .sidebar {
     position: fixed; left: 0; top: 0; bottom: 0; z-index: 100;
     transform: translateX(-100%); transition: transform 0.2s; box-shadow: 2px 0 12px rgba(0, 0, 0, 0.2);
