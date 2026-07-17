@@ -499,32 +499,45 @@ onMounted(async () => {
   .hero {
     padding: 16px;
     gap: 14px;
-    /* stretch 让 cover 也跟随 info 拉伸,避免右侧信息比左侧封面高的错位 */
-    align-items: stretch;
+    /* 恢复 flex-start:移动端封面保持 3:4 原始比例,信息列自然向下延伸 */
+    align-items: flex-start;
   }
   .cover {
     width: 96px;
     border-radius: 4px;
-    /* 移动端信息内容常常比 3/4 比例的封面高,取消 aspect-ratio,
-       让 cover 高度跟随 info(由 hero 的 align-items:stretch 撑开),
-       图片 object-fit: cover 保持视觉裁剪、生成封面 100% 自适应 */
-    aspect-ratio: unset;
-    min-height: 128px;
-    align-self: stretch;
+    /* 恢复 3:4 比例(96*4/3=128px),不再随 info 拉伸,避免视觉难看 */
+    aspect-ratio: 3/4;
+    min-height: auto;
+    align-self: flex-start;
   }
-  /* 移动端 info 不再强设 min-height,由内容决定,cover 自动跟随 */
+  /* 移动端 info 不再强撑,由内容决定高度 */
   .info { min-height: 0; }
   .book-title { font-size: 17px; margin-bottom: 4px; }
   .subtitle { font-size: 12px; margin-bottom: 4px; }
   .author { font-size: 13px; margin-bottom: 8px; }
   .tags { margin-bottom: 8px; }
   .progress { margin: 4px 0 10px; }
-  /* CTA:移动端垂直堆叠,不与 cover 等高,直接从内容后自然排列 */
+  /* 移动端 CTA 改横向一排:主按钮 + 2 个次按钮平铺
+     .secondary-actions display:contents 让子按钮成为 .actions 的直接 flex 项,天然对齐 */
   .info > .actions { margin-top: 4px; }
-  .actions { gap: 8px; }
-  .cta-primary { padding: 0 12px; }
-  .cta-primary :deep(span) { font-size: 14px; }
-  .cta-icon { padding: 0 6px; min-width: 0; }
+  .actions {
+    flex-direction: row;
+    gap: 8px;
+  }
+  .cta-primary {
+    flex: 1.6;
+    min-width: 0;
+    padding: 0 8px;
+  }
+  .secondary-actions {
+    display: contents;
+  }
+  .cta-icon {
+    flex: 1;
+    min-width: 0;
+    padding: 0 6px;
+  }
+  .cta-primary :deep(span),
   .cta-icon :deep(span) { font-size: 13px; }
 
   /* 指标卡:小屏收紧 padding,数字略缩;仍保持 4 格 */
