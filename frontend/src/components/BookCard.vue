@@ -3,7 +3,7 @@
     <div class="cover">
       <CoverImage v-if="book.has_cover" :book-id="book.id" :alt="displayTitle" />
       <GeneratedCover v-else :title="displayTitle" :format="book.format" />
-      <span v-if="book.has_cover" class="badge">{{ book.format.toUpperCase() }}</span>
+      <span class="badge">{{ book.format.toUpperCase() }}</span>
     </div>
     <div class="meta">
       <div class="line title" :title="displayTitle">{{ displayTitle }}</div>

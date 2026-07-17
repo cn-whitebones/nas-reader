@@ -3,7 +3,6 @@
     <div v-if="compact" class="gc-initial">{{ initial }}</div>
     <template v-else>
       <div class="gc-title" :class="{ small: longTitle }">{{ title }}</div>
-      <span class="gc-format">{{ format.toUpperCase() }}</span>
     </template>
   </div>
 </template>
@@ -71,15 +70,6 @@ const bgStyle = computed(() => {
 .gc-title.small {
   font-size: clamp(11px, 12%, 18px);
   letter-spacing: 0.04em;
-}
-.gc-format {
-  position: absolute;
-  left: 6px;
-  bottom: 6px;
-  font-size: 10px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.82);
-  letter-spacing: 0.05em;
 }
 /* compact:列表视图小图,只显示首字,居中 */
 .gen-cover.compact {
