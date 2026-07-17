@@ -3,18 +3,33 @@
 - 提供全局 scheduler 实例(应用启动时 start)
 - enqueue_scan:创建 ScanTask 并异步执行一次扫描
 - register_auto_scans:为开启 auto_scan 的文件源注册周期任务
+
+关键设计:扫描是 CPU/IO 密集的**同步阻塞**操作(遍历目录、读文件、解析
+整本书、算哈希)。若把 async 的 run_scan 直接交给 AsyncIOScheduler,它会
+在 uvicorn 的**同一个事件循环**上执行,一次大扫描就会阻塞整个事件循环——
+期间所有 HTTP 请求(含前端轮询)无响应、后续任务无法调度,表现为任务一直
+卡在「等待中(pending)」。因此扫描 job 走独立线程池执行器(ThreadPoolExecutor),
+在线程内用 asyncio.run 起独立事件循环跑 run_scan,与主循环彻底隔离。
 """
 from __future__ import annotations
 
+import asyncio
 import uuid
 
+from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.db.session import AsyncSessionLocal
 from app.models.source import ScanTask, Source
 from app.services.scanner.scan import run_scan
 
-scheduler = AsyncIOScheduler()
+# 所有 job 走线程池执行器,避免阻塞 uvicorn 事件循环;并发上限适度即可(扫描以磁盘 IO 为主)
+scheduler = AsyncIOScheduler(executors={"default": ThreadPoolExecutor(4)})
+
+
+def _run_scan_in_thread(source_id: uuid.UUID, task_id: uuid.UUID, force: bool) -> None:
+    """线程池执行体:在独立事件循环里跑 async 的 run_scan,不触碰主事件循环。"""
+    asyncio.run(run_scan(source_id, task_id, force))
 
 
 async def enqueue_scan(source_id: uuid.UUID, force: bool = False) -> uuid.UUID:
@@ -27,7 +42,10 @@ async def enqueue_scan(source_id: uuid.UUID, force: bool = False) -> uuid.UUID:
         task_id = task.id
 
     scheduler.add_job(
-        run_scan, args=[source_id, task_id, force], id=f"scan-{task_id}", misfire_grace_time=None
+        _run_scan_in_thread,
+        args=[source_id, task_id, force],
+        id=f"scan-{task_id}",
+        misfire_grace_time=None,
     )
     return task_id
 
@@ -36,8 +54,9 @@ def _auto_job_id(source_id: uuid.UUID) -> str:
     return f"autoscan-{source_id}"
 
 
-async def _auto_scan_job(source_id: uuid.UUID) -> None:
-    await enqueue_scan(source_id)
+def _auto_scan_job(source_id: uuid.UUID) -> None:
+    """周期自动扫描:同样在线程里执行,避免阻塞主循环。"""
+    asyncio.run(enqueue_scan(source_id))
 
 
 def schedule_auto_scan(source: Source) -> None:
