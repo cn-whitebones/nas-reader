@@ -135,6 +135,7 @@ const initialCharOffset = ref(0) // txt/epub 用字符偏移
 const chapterDrawer = ref(false)
 const settingsOpen = ref(false)
 const showChrome = ref(false) // 默认隐藏(沉浸式);点中间切换,翻页后自动隐藏
+const goLastOnLoad = ref(false) // 标记下一章加载完成后是否显示末页(右半页)
 
 function toggleChrome() {
   showChrome.value = !showChrome.value
@@ -176,32 +177,29 @@ const comicImgSrc = computed(() => {
 
 function onComicImgLoad(e: Event) {
   const img = e.target as HTMLImageElement
-  // 如果用户已经手动旋转过,就不做任何自动处理
+  // 用户手动旋转过就不做任何处理
   if (userManualRotated.value) {
     comicIsDoublePage.value = false
     comicImgLoaded.value = true
     return
   }
-  // 优先使用后端设置
-  if (book.value?.double_page) {
+  // 是否走双页模式，完全由后端设置（book.double_page）决定；不再基于宽高比自动触发。
+  // PC 端不做双页切割。
+  if (book.value?.double_page && isMobile.value) {
     comicIsDoublePage.value = true
     comicOriginalImage.value = comicImgSrc.value
     comicRotate90.value = false
     splitDoublePage(img)
-    // 根据start_right决定初始子页
-    comicSubPage.value = book.value.start_right ? 1 : 0
+    // 一张原图对应“一整章”，进入这章时从阅读方向的第一半开始（跨章向前翻页时定位到末半）
+    const startRight = !!book.value.start_right
+    const firstSub = startRight ? 1 : 0
+    const lastSub = startRight ? 0 : 1
+    comicSubPage.value = goLastOnLoad.value ? lastSub : firstSub
+    goLastOnLoad.value = false
   } else if (isMobile.value) {
-    // 没有设置的话才自动判断单页/旋转
-    const ratio = img.naturalWidth / img.naturalHeight
-    const isDouble = ratio >= 1.2
-    comicIsDoublePage.value = isDouble
-    comicOriginalImage.value = comicImgSrc.value
-    if (isDouble) {
-      comicRotate90.value = false
-      splitDoublePage(img)
-    } else {
-      comicRotate90.value = img.naturalWidth > img.naturalHeight
-    }
+    // 未开启双页模式：仅在图片明显是横图时做一次旋转，以便竖屏阅读
+    comicIsDoublePage.value = false
+    comicRotate90.value = img.naturalWidth > img.naturalHeight
   } else {
     comicIsDoublePage.value = false
   }
@@ -326,8 +324,19 @@ async function loadChapter(idx: number, goLast = false) {
       htmlReaderRef.value?.prepareChapterTransition('prev', goLast ? 'last' : 'first')
     }
   }
+  // 漫画:先清空 html + 重置双页状态,防止 v-if 切换到单页 <img> 时,
+  // 旧章 html 触发一次 @load 提前消费掉 goLastOnLoad,导致跨章向前翻页落错半页
+  if (isComic.value) {
+    chapterHtml.value = ''
+    comicIsDoublePage.value = false
+    comicImgLoaded.value = false
+    comicLeftImage.value = ''
+    comicRightImage.value = ''
+  }
   curChapter.value = idx
   const { data } = await booksApi.content(bookId, idx)
+  // 标记:翻到上一章时是否要显示末半页(在 onComicImgLoad 中根据阅读方向落点)
+  goLastOnLoad.value = goLast
   chapterHtml.value = data.html
   // 漫画:一页一章,手动保存进度;文本/PDF 靠 HtmlReader 事件触发
   if (isComic.value) {
@@ -362,13 +371,18 @@ function updatePageFlags() {
 
 // —— 翻页(含跨章节)——
 function nextPageOrChapter() {
-  // 漫画:一页一章,如果是双页则先翻到右半页
+  // 漫画:一页一章;双页则先翻到跨页的另一半(按阅读方向)
   if (isComic.value) {
-    if (comicIsDoublePage.value && comicSubPage.value === 0) {
-      comicSubPage.value = 1
-      return
+    if (comicIsDoublePage.value) {
+      const startRight = !!book.value?.start_right
+      const firstSub = startRight ? 1 : 0
+      // 当前还在跨页的第一半 → 翻到第二半,不跳章
+      if (comicSubPage.value === firstSub) {
+        comicSubPage.value = startRight ? 0 : 1
+        return
+      }
     }
-    // 普通单页或双页的右半页 → 下一章
+    // 单页,或已在双页的第二半 → 下一章
     if (curChapter.value < chapters.value.length - 1) {
       loadChapter(curChapter.value + 1, false)
     }
@@ -384,13 +398,18 @@ function nextPageOrChapter() {
   }
 }
 function prevPageOrChapter() {
-  // 漫画:一页一章,如果是双页则先翻到左半页
+  // 漫画:双页则先翻回跨页的第一半;否则上一章
   if (isComic.value) {
-    if (comicIsDoublePage.value && comicSubPage.value === 1) {
-      comicSubPage.value = 0
-      return
+    if (comicIsDoublePage.value) {
+      const startRight = !!book.value?.start_right
+      const firstSub = startRight ? 1 : 0
+      // 当前在跨页的第二半 → 翻回第一半,不跳章
+      if (comicSubPage.value !== firstSub) {
+        comicSubPage.value = firstSub
+        return
+      }
     }
-    // 普通单页或双页的左半页 → 上一章
+    // 单页,或已在双页第一半 → 上一章(定位到末半页,由 onComicImgLoad 处理)
     if (curChapter.value > 0) {
       loadChapter(curChapter.value - 1, true)
     }

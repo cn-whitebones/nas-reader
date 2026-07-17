@@ -76,8 +76,8 @@
       </div>
     </div>
 
-    <!-- 漫画设置:仅漫画格式显示 -->
-    <div class="section" v-if="book.format === 'comic'">
+    <!-- 漫画设置:仅移动端显示，PC端不需要双页切割 -->
+    <div class="section" v-if="book.format === 'comic' && isMobile">
       <h3 class="section-title">漫画阅读设置</h3>
       <div class="comic-settings">
         <div class="setting-item">
@@ -196,6 +196,7 @@ import GeneratedCover from '@/components/GeneratedCover.vue'
 
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.isAdmin)
+const isMobile = ref(window.innerWidth < 700)
 
 const route = useRoute()
 const bookId = route.params.id as string

@@ -335,7 +335,7 @@ async def update_comic_settings(
         book.start_right = payload.start_right
     await db.commit()
     await db.refresh(book)
-    return await _detail_response(db, book)
+    return await _detail_response(db, book, user.id)
 
 
 # ---------- 内部辅助 ----------
