@@ -3,7 +3,7 @@
     <div v-for="b in books" :key="b.id" class="book-item" @click="$router.push(`/books/${b.id}`)">
       <div class="cover-wrap">
         <CoverImage v-if="b.has_cover" :book-id="b.id" :alt="b.file_name" />
-        <div v-else class="no-cover">{{ b.format.toUpperCase() }}</div>
+        <GeneratedCover v-else :title="b.title || b.file_name" :format="b.format" compact />
       </div>
       <div class="book-info">
         <div class="book-title">{{ b.title || b.file_name }}</div>
@@ -24,6 +24,7 @@
 
 <script setup lang="ts">
 import CoverImage from './CoverImage.vue'
+import GeneratedCover from './GeneratedCover.vue'
 import type { BookBrief } from '@/api/books'
 import { formatWords } from '@/utils/format'
 
@@ -62,16 +63,6 @@ defineProps<{ books: BookBrief[] }>()
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-.no-cover {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #909399;
-  font-size: 12px;
-  font-weight: 600;
 }
 .book-info {
   flex: 1;

@@ -3,7 +3,7 @@
     <div class="hero">
       <div class="cover">
         <CoverImage v-if="book.has_cover" :book-id="bookId" :alt="title" />
-        <div v-else class="no-cover">{{ book.format.toUpperCase() }}</div>
+        <GeneratedCover v-else :title="title || book.file_name" :format="book.format" />
       </div>
       <div class="info">
         <h1>{{ title }}</h1>
@@ -92,6 +92,7 @@ import { shelvesApi } from '@/api/shelves'
 import { scrapeApi, type Candidate } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
 import CoverImage from '@/components/CoverImage.vue'
+import GeneratedCover from '@/components/GeneratedCover.vue'
 
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.isAdmin)
@@ -235,7 +236,6 @@ onMounted(async () => {
 .hero { display: flex; gap: 24px; background: #fff; padding: 24px; border-radius: 8px; }
 .cover { width: 180px; flex-shrink: 0; align-self: flex-start; aspect-ratio: 3/4; border-radius: 6px; overflow: hidden; background: #eef1f6; }
 .cover img { width: 100%; height: 100%; object-fit: cover; }
-.no-cover { display: flex; align-items: center; justify-content: center; height: 100%; color: #a0a4ac; font-size: 26px; font-weight: 600; }
 .info { flex: 1; min-width: 0; }
 .info h1 { margin: 0 0 8px; font-size: 22px; }
 .subtitle { color: #909399; margin: 0 0 12px; }
