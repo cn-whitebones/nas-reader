@@ -41,8 +41,7 @@
               :type="inShelf ? 'success' : 'default'"
               @click="toggleShelf"
             >
-              <el-icon><StarFilled v-if="inShelf" /><Star v-else /></el-icon>
-              <span class="cta-icon-text">{{ inShelf ? '已收藏' : '收藏' }}</span>
+              {{ inShelf ? '已收藏' : '收藏' }}
             </el-button>
             <el-button
               v-if="isAdmin"
@@ -50,8 +49,7 @@
               class="cta-icon"
               @click="openScrapeDialog"
             >
-              <el-icon><Refresh /></el-icon>
-              <span class="cta-icon-text">刮削</span>
+              刮削
             </el-button>
           </div>
         </div>
@@ -167,7 +165,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Reading, Refresh, Star, StarFilled } from '@element-plus/icons-vue'
+import { Reading } from '@element-plus/icons-vue'
 import { booksApi, type BookDetail } from '@/api/books'
 import { shelvesApi } from '@/api/shelves'
 import { scrapeApi, type Candidate } from '@/api/admin'
@@ -545,7 +543,6 @@ onMounted(async () => {
     min-width: 0;
     padding: 0 6px;
   }
-  .cta-icon-text { display: inline; }
   .cta-primary :deep(span),
   .cta-icon :deep(span) { font-size: 13px; }
 
@@ -567,12 +564,7 @@ onMounted(async () => {
   .provider-select { width: 100%; }
 }
 
-/* 所有移动端次按钮只显示 icon,避免文字拥挤;指标卡 2×2 */
-@media (max-width: 700px) {
-  .cta-icon-text { display: none; }
-  .cta-icon :deep(.el-icon) { margin-right: 0 !important; }
-}
-
+/* 极窄屏(<360px):指标卡改 2×2 */
 @media (max-width: 360px) {
   .stats { grid-template-columns: repeat(2, 1fr); }
 }
