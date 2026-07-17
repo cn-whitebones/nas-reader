@@ -105,7 +105,16 @@
       </div>
     </el-drawer>
 
-    <SettingsPanel v-model="settingsOpen" @update:modelValue="(v) => { settingsOpen = v; if (!v) showChrome = false }" />
+    <SettingsPanel
+      v-model="settingsOpen"
+      @update:modelValue="(v) => { settingsOpen = v; if (!v) showChrome = false }"
+      :is-comic="isComic"
+      :is-mobile="isMobile"
+      :book-id="bookId"
+      :book-double-page="book?.double_page"
+      :book-start-right="book?.start_right"
+      @comic-prefs-changed="reloadCurrentPage"
+    />
   </div>
 </template>
 
@@ -168,6 +177,44 @@ const comicSubPage = ref(0) // 子页:0=左半页,1=右半页
 const comicLeftImage = ref('') // 左半页图片
 const comicRightImage = ref('') // 右半页图片
 const comicOriginalImage = ref('') // 原图src
+const STORAGE_KEY_PREFIX = 'nas-reader:comic-pref:'
+
+// 读取漫画设置:localStorage 用户覆盖值 > 书籍默认值
+function getComicPrefs() {
+  // 先试读本地
+  try {
+    const raw = localStorage.getItem(`${STORAGE_KEY_PREFIX}${bookId}`)
+    if (raw) {
+      const local = JSON.parse(raw)
+      return {
+        doublePage: !!local.doublePage,
+        startRight: !!local.startRight,
+      }
+    }
+  } catch { /* ignore */ }
+  return {
+    doublePage: !!book.value?.double_page,
+    startRight: !!book.value?.start_right,
+  }
+}
+
+// 漫画设置改变时:重切当前页
+async function reloadCurrentPage() {
+  if (!isComic.value) return
+  // 先清空旧状态,触发重新加载
+  const wasDouble = comicIsDoublePage.value
+  chapterHtml.value = ''
+  comicIsDoublePage.value = false
+  comicImgLoaded.value = false
+  comicLeftImage.value = ''
+  comicRightImage.value = ''
+  await new Promise(r => setTimeout(r, 50))
+  // 重新拉取当前章
+  const { data } = await booksApi.content(bookId, curChapter.value)
+  chapterHtml.value = data.html
+  goLastOnLoad.value = wasDouble && comicSubPage.value === 1
+}
+
 // 从后端返回的 HTML 中提取 base64 img src
 const comicImgSrc = computed(() => {
   if (!isComic.value || !chapterHtml.value) return ''
@@ -183,15 +230,16 @@ function onComicImgLoad(e: Event) {
     comicImgLoaded.value = true
     return
   }
-  // 是否走双页模式，完全由后端设置（book.double_page）决定；不再基于宽高比自动触发。
+  const prefs = getComicPrefs()
+  // 是否走双页模式，由本地覆盖或后端设置决定；不再基于宽高比自动触发。
   // PC 端不做双页切割。
-  if (book.value?.double_page && isMobile.value) {
+  if (prefs.doublePage && isMobile.value) {
     comicIsDoublePage.value = true
     comicOriginalImage.value = comicImgSrc.value
     comicRotate90.value = false
     splitDoublePage(img)
     // 一张原图对应“一整章”，进入这章时从阅读方向的第一半开始（跨章向前翻页时定位到末半）
-    const startRight = !!book.value.start_right
+    const startRight = prefs.startRight
     const firstSub = startRight ? 1 : 0
     const lastSub = startRight ? 0 : 1
     comicSubPage.value = goLastOnLoad.value ? lastSub : firstSub
@@ -374,7 +422,7 @@ function nextPageOrChapter() {
   // 漫画:一页一章;双页则先翻到跨页的另一半(按阅读方向)
   if (isComic.value) {
     if (comicIsDoublePage.value) {
-      const startRight = !!book.value?.start_right
+      const startRight = getComicPrefs().startRight
       const firstSub = startRight ? 1 : 0
       // 当前还在跨页的第一半 → 翻到第二半,不跳章
       if (comicSubPage.value === firstSub) {
@@ -401,7 +449,7 @@ function prevPageOrChapter() {
   // 漫画:双页则先翻回跨页的第一半;否则上一章
   if (isComic.value) {
     if (comicIsDoublePage.value) {
-      const startRight = !!book.value?.start_right
+      const startRight = getComicPrefs().startRight
       const firstSub = startRight ? 1 : 0
       // 当前在跨页的第二半 → 翻回第一半,不跳章
       if (comicSubPage.value !== firstSub) {

@@ -76,25 +76,34 @@
       </div>
     </div>
 
-    <!-- 漫画设置:仅移动端显示，PC端不需要双页切割 -->
+    <!-- 漫画设置:仅移动端显示，PC端不需要双页切割;仅管理员可编辑 -->
     <div class="section" v-if="book.format === 'comic' && isMobile">
       <h3 class="section-title">漫画阅读设置</h3>
       <div class="comic-settings">
         <div class="setting-item">
-          <span class="setting-label">双页横图模式</span>
+          <span class="setting-label">
+            双页横图模式
+            <span v-if="!isAdmin" class="admin-hint">（管理员设定）</span>
+          </span>
           <el-switch
             v-model="doublePage"
+            :disabled="!isAdmin"
             @change="saveComicSettings"
           />
         </div>
         <div v-if="doublePage" class="setting-item">
-          <span class="setting-label">从右页开始</span>
+          <span class="setting-label">
+            从右页开始
+            <span v-if="!isAdmin" class="admin-hint">（管理员设定）</span>
+          </span>
           <el-switch
             v-model="startRight"
+            :disabled="!isAdmin"
             @change="saveComicSettings"
           />
         </div>
       </div>
+      <p v-if="!isAdmin" class="comic-tip">如需调整阅读方式，请在阅读器右上角「设置」中本地覆盖，仅影响您自己。</p>
     </div>
 
     <!-- 出版信息 · 用 label/value 键值列表,取代原一堆"作者:xxx" -->
@@ -548,6 +557,16 @@ onMounted(async () => {
 .setting-label {
   font-size: 14px;
   color: #303133;
+}
+.admin-hint {
+  font-size: 12px;
+  color: #909399;
+  margin-left: 8px;
+}
+.comic-tip {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #909399;
 }
 
 /* ---------- 刮削对话框(基本沿用原样) ---------- */
