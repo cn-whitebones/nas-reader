@@ -443,8 +443,7 @@ function onVisibilityChange() {
   position: relative;
 }
 .comic-page img {
-  max-width: 100%;
-  max-width: min(100%, 1000px);  /* 桌面端不过宽 */
+  width: auto;
   height: auto;
   display: block;
   opacity: 0;
@@ -458,6 +457,32 @@ function onVisibilityChange() {
 }
 .theme-dark .comic-page { background: #1a1a1a; }
 .theme-sepia .comic-page { background: #f5ecd9; }
+
+/* PC端(≥700px):尽可能放大图片,充分利用屏幕空间,保持原始比例,同时避免图片失真 */
+@media (min-width: 700px) {
+  .comic-page img:not(.rotate-90) {
+    /* 非旋转时优先占满高度(不旋转的漫画通常是竖图),同时限制最大宽度避免太宽 */
+    max-height: 95vh;
+    max-width: 95vw;
+    width: auto;
+    height: auto;
+  }
+  /* 旋转的图片(横变竖)单独调整 */
+  .comic-page img.rotate-90 {
+    max-width: none;
+    max-height: 100vw;
+  }
+}
+
+/* 移动端(<700px):保持更适度的大小,避免边缘留白太少 */
+@media (max-width: 700px) {
+  .comic-page img {
+    max-width: 100%;
+    max-height: none;
+    width: 100%;
+    height: auto;
+  }
+}
 
 /* 横图旋转90度后,宽高互换:max-width 变成 max-height,占满屏幕高度 */
 .comic-page img.rotate-90 {
