@@ -54,6 +54,8 @@ class Book(Base):
     cover_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     status: Mapped[BookStatus] = mapped_column(Enum(BookStatus), default=BookStatus.active, index=True)
     chapter_count: Mapped[int] = mapped_column(Integer, default=0)
+    # 字数:txt/epub/mobi 精确统计;pdf/漫画无法可靠统计,保持 NULL
+    word_count: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -84,6 +86,9 @@ class BookMetadata(Base):
     title: Mapped[str | None] = mapped_column(String(512), nullable=True, index=True)
     subtitle: Mapped[str | None] = mapped_column(String(512), nullable=True)
     authors: Mapped[list[str]] = mapped_column(JSON, default=list)
+    # 拼音排序键(小写):中文书名/作者按拼音排序用,入库时生成,index 便于排序分页
+    title_sort: Mapped[str | None] = mapped_column(String(512), nullable=True, index=True)
+    author_sort: Mapped[str | None] = mapped_column(String(512), nullable=True, index=True)
     publisher: Mapped[str | None] = mapped_column(String(256), nullable=True)
     isbn: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     pub_date: Mapped[date | None] = mapped_column(nullable=True)

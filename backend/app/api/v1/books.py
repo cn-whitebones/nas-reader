@@ -44,6 +44,8 @@ def _brief(book: Book) -> BookBrief:
         format=book.format,
         status=book.status,
         chapter_count=book.chapter_count,
+        word_count=book.word_count,
+        file_size=book.file_size,
         has_cover=bool(book.cover_path),
         title=md.title if md else None,
         authors=md.authors if md else [],
@@ -55,13 +57,26 @@ async def list_books(
     source_id: uuid.UUID | None = None,
     dir_path: str | None = None,
     format: BookFormat | None = None,
+    chapter_min: int | None = Query(None, ge=0),
+    chapter_max: int | None = Query(None, ge=0),
+    word_min: int | None = Query(None, ge=0),
+    word_max: int | None = Query(None, ge=0),
+    has_cover: bool | None = None,
+    sort: str = Query("title", pattern="^(title|author|words|chapters|added|size)$"),
+    order: str = Query("asc", pattern="^(asc|desc)$"),
     page: int = Query(1, ge=1),
     size: int = Query(24, ge=1, le=100),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     source_map = await get_readable_source_map(db, user)
-    base = select(Book).where(Book.status == BookStatus.active).options(selectinload(Book.book_metadata))
+    # outerjoin 元数据:排序/筛选可能引用 title_sort/author_sort,且不排除无元数据的书
+    base = (
+        select(Book)
+        .outerjoin(BookMetadata, BookMetadata.book_id == Book.id)
+        .where(Book.status == BookStatus.active)
+        .options(selectinload(Book.book_metadata))
+    )
     base = apply_book_filter(base, user, source_map)
     if source_id:
         base = base.where(Book.source_id == source_id)
@@ -69,14 +84,54 @@ async def list_books(
         base = base.where(Book.dir_path == dir_path)
     if format:
         base = base.where(Book.format == format)
+    # 章节数范围
+    if chapter_min is not None:
+        base = base.where(Book.chapter_count >= chapter_min)
+    if chapter_max is not None:
+        base = base.where(Book.chapter_count <= chapter_max)
+    # 字数范围(NULL 视为不满足范围条件,故显式要求 word_count 非空)
+    if word_min is not None:
+        base = base.where(Book.word_count.is_not(None), Book.word_count >= word_min)
+    if word_max is not None:
+        base = base.where(Book.word_count.is_not(None), Book.word_count <= word_max)
+    # 是否有封面
+    if has_cover is not None:
+        base = base.where(Book.cover_path.is_not(None) if has_cover else Book.cover_path.is_(None))
 
     count_stmt = select(func.count()).select_from(base.order_by(None).subquery())
     total = await db.scalar(count_stmt) or 0
-    result = await db.execute(
-        base.order_by(Book.dir_path, Book.file_name).offset((page - 1) * size).limit(size)
-    )
+
+    ordered = base.order_by(*_order_clauses(sort, order))
+    result = await db.execute(ordered.offset((page - 1) * size).limit(size))
     items = [_brief(b) for b in result.scalars().all()]
     return Page(items=items, total=total, page=page, size=size)
+
+
+def _order_clauses(sort: str, order: str):
+    """构造排序子句。NULL 值一律排到最后(nulls_last),末尾用稳定次键。"""
+    desc = order == "desc"
+
+    def d(col):
+        return col.desc() if desc else col.asc()
+
+    # 各排序字段对应主键列;字符串键用 collate NOCASE 保证大小写无关
+    if sort == "author":
+        primary = BookMetadata.author_sort
+    elif sort == "words":
+        primary = Book.word_count
+    elif sort == "chapters":
+        primary = Book.chapter_count
+    elif sort == "added":
+        primary = Book.added_at
+    elif sort == "size":
+        primary = Book.file_size
+    else:  # title
+        primary = BookMetadata.title_sort
+
+    # NULL 排最后:SQLite 支持 NULLS LAST 语法(3.30+)
+    primary_clause = d(primary).nulls_last()
+    # 稳定次键:目录 + 文件名,保证同值顺序确定
+    return [primary_clause, Book.dir_path.asc(), Book.file_name.asc()]
 
 
 @router.get("/tree", response_model=list[TreeNode])

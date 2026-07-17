@@ -21,6 +21,7 @@ from app.models.source import ScanStatus, ScanTask, Source
 from app.services.parsers.registry import SUPPORTED_EXTENSIONS, get_format, get_parser
 from app.services.scanner.covers import save_cover
 from app.services.scanner.fsutil import compute_file_hash
+from app.services.sortkey import authors_sort_key, to_sort_key
 
 
 async def run_scan(source_id: uuid.UUID, task_id: uuid.UUID, force: bool = False) -> None:
@@ -155,6 +156,7 @@ async def _process_file(
         for ch in parsed.chapters:
             db.add(Chapter(book_id=book.id, idx=ch.idx, title=ch.title, location=ch.location))
         book.chapter_count = len(parsed.chapters)
+        book.word_count = parsed.word_count
 
         # 封面
         if parsed.cover_bytes:
@@ -171,13 +173,21 @@ async def _process_file(
 async def _ensure_embedded_metadata(db: AsyncSession, book: Book, parsed) -> None:
     existing = await db.get(BookMetadata, book.id)
     if existing is not None:
-        return  # 已有元数据(可能来自刮削),不覆盖
+        # 已有元数据(可能来自刮削):仅补齐缺失的拼音排序键,不覆盖其它字段
+        if not existing.title_sort:
+            existing.title_sort = to_sort_key(existing.title or "")
+        if not existing.author_sort:
+            existing.author_sort = authors_sort_key(existing.authors)
+        return
     title = parsed.title or os.path.splitext(book.file_name)[0]
+    authors = parsed.authors or []
     db.add(
         BookMetadata(
             book_id=book.id,
             title=title,
-            authors=parsed.authors or [],
+            authors=authors,
             language=parsed.language,
+            title_sort=to_sort_key(title),
+            author_sort=authors_sort_key(authors),
         )
     )

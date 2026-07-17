@@ -13,6 +13,7 @@ from app.schemas.book import MetadataOut, MetadataUpdate
 from app.schemas.scrape import ApplyCandidateRequest, CandidateOut, ScrapeRequest
 from app.services.metadata.base import MetadataCandidate
 from app.services.metadata.scraper import apply_candidate, search_candidates
+from app.services.sortkey import authors_sort_key, to_sort_key
 from app.services.permission import can_read_book
 
 router = APIRouter(tags=["scrape"])
@@ -77,6 +78,9 @@ async def update_metadata(
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(md, key, value)
     md.source_provider = MetadataProviderName.manual
+    # 同步拼音排序键(标题/作者可能被修改)
+    md.title_sort = to_sort_key(md.title or "")
+    md.author_sort = authors_sort_key(md.authors)
     await db.commit()
     await db.refresh(md)
     return MetadataOut.model_validate(md)

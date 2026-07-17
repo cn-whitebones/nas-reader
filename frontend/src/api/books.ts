@@ -14,6 +14,8 @@ export interface BookBrief {
   format: 'txt' | 'epub' | 'pdf' | 'mobi' | 'comic'
   status: 'active' | 'missing'
   chapter_count: number
+  word_count: number | null
+  file_size: number
   has_cover: boolean
   title: string | null
   authors: string[]

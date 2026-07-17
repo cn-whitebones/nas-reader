@@ -23,6 +23,7 @@ from app.services.parsers.base import (
     ParsedBook,
     ParsedChapter,
     clean_html_body,
+    count_words,
 )
 
 _NCX_NS = "{http://www.daisy.org/z3986/2005/ncx/}"
@@ -69,6 +70,9 @@ class MobiParser(BaseParser):
         # 章节来自 toc.ncx,锚点 id 定位字符偏移
         result.chapters = self._chapters_from_ncx(html_dir, html)
 
+        # 字数:book.html 去标签后统计
+        result.word_count = self._count_words(html)
+
         # NCX 无效 → 单章兜底
         if not result.chapters:
             result.chapters = [ParsedChapter(idx=0, title="全文", location="0")]
@@ -109,6 +113,19 @@ class MobiParser(BaseParser):
         return clean_html_body(text[start:end])
 
     # ---------- 内部 ----------
+    @staticmethod
+    def _count_words(html: str) -> int | None:
+        """MOBI7 的 book.html 去标签后统计字数;失败返回 None。"""
+        if not html:
+            return None
+        try:
+            from bs4 import BeautifulSoup
+
+            text = BeautifulSoup(html, "lxml").get_text(" ")
+            return count_words(text) or None
+        except Exception:
+            return None
+
     @staticmethod
     def _read_html(output: str) -> str:
         """读取 MOBI7 解压出的 book.html。output 可能是 .html 文件或其所在目录。"""

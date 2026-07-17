@@ -2,13 +2,15 @@
 
 中文 txt 章节标题写法极不统一,实测需覆盖三类:
   1. 强模式  「第X章/回/节/卷/篇/部/集/折」          —— 最规范
-  2. 弱模式  「X + 分隔(全角空格/tab/顿号/多空格) + 标题」或纯数字行 X
+  2. 弱模式  「X + 分隔(全角空格/tab/顿号/半角空格) + 标题」或纯数字行 X
              例:金庸多数作品用「一　　青衫磊落险峰行」甚至只有「一」
   3. 特殊无序号  楔子/序章/序言/引子/尾声/后记/番外/附录 等
 
 单纯正则匹配会把「正文目录」「散落的数字行」也当成章节(如鹿鼎记正文里
 孤立的「六」「两」)。因此在正则之上再用「序号单调递增 + 同序号取最后一次
 出现」两条约束过滤:目录里的重复序号被正文覆盖,正文里不递增的数字被丢弃。
+
+若全书无任何可识别标题(如《白马啸西风》),整本作为单章,不机械分块。
 """
 from __future__ import annotations
 
@@ -16,22 +18,23 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-from app.services.parsers.base import BaseParser, ParsedBook, ParsedChapter
+from app.services.parsers.base import BaseParser, ParsedBook, ParsedChapter, count_words
 
 _NUM = "[0-9零〇一二三四五六七八九十百千两]"
 # 强模式:第X章/回/…
 _STRONG_RE = re.compile(rf"^\s*第\s*({_NUM}{{1,7}})\s*[章节回卷篇部集折].{{0,30}}$")
 _EN_RE = re.compile(r"^\s*Chapter\s+(\d+)\b.{0,30}$", re.IGNORECASE)
-# 弱模式:数字 + 分隔符(全角空格/tab/顿号/点/≥2半角空格) + 标题
-_WEAK_TITLE_RE = re.compile(rf"^\s*({_NUM}{{1,7}})\s*(?:[　\t、．.]|[ ]{{2,}})\s*\S.{{0,28}}$")
+# 弱模式:数字 + 分隔符(全角空格/tab/顿号/点/半角空格) + 标题
+# 半角空格允许单个:金庸《三十三剑客图》首章「一 赵处女」即用单个半角空格;
+# 单空格较宽松,靠后续「序号单调递增 + 数量阈值」过滤正文中的误匹配。
+_WEAK_TITLE_RE = re.compile(rf"^\s*({_NUM}{{1,7}})\s*(?:[　\t、．.]|[ ]+)\s*\S.{{0,28}}$")
 # 弱模式:纯数字行(仅一个序号,无标题)
 _WEAK_PURE_RE = re.compile(rf"^\s*({_NUM}{{1,7}})\s*$")
 # 特殊无序号章节
 _SPECIAL_RE = re.compile(r"^\s*(?:楔子|序章|序言|序幕|前言|引子|尾声|终章|后记|番外篇?|附录).{0,20}$")
 
 _MAX_TITLE_LEN = 60
-_MIN_SEQ_CHAPTERS = 3  # 至少识别到这么多带序号的章节才认可,否则视为无章节
-_FALLBACK_CHUNK = 5000  # 无章节时按此字符数分块
+_MIN_SEQ_CHAPTERS = 3  # 至少识别到这么多带序号的章节才认可,否则视为无章节(整本单章)
 
 # 编码尝试顺序:utf-8(含BOM)→ gb18030(GBK/GB2312超集,覆盖简体中文旧书)→ big5(繁体)
 _ENCODINGS = ("utf-8-sig", "gb18030", "big5")
@@ -90,12 +93,10 @@ class TxtParser(BaseParser):
         text = _read_text(file_path)
         chapters = self._detect_chapters(text)
         if not chapters:
-            # 无标准章节标题 → 按固定字符数分块
-            for i in range(0, max(len(text), 1), _FALLBACK_CHUNK):
-                chunk_head = text[i : i + 40].strip().splitlines()
-                title = (chunk_head[0][:40] if chunk_head else "") or f"第 {i // _FALLBACK_CHUNK + 1} 节"
-                chapters.append(ParsedChapter(idx=len(chapters), title=title, location=str(i)))
-        return ParsedBook(chapters=chapters)
+            # 无任何可识别的章节标题(如金庸《白马啸西风》):不机械按字符数
+            # 切成一堆无意义的「假章节」,整本作为单章,由前端阅读器自行分页。
+            chapters = [ParsedChapter(idx=0, title="全文", location="0")]
+        return ParsedBook(chapters=chapters, word_count=count_words(text))
 
     @staticmethod
     def _detect_chapters(text: str) -> list[ParsedChapter]:
