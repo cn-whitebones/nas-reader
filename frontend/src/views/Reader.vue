@@ -143,6 +143,7 @@ const comicImgRef = ref<HTMLImageElement>()
 const comicRotate90 = ref(false)
 const comicImgLoaded = ref(false)
 const userManualRotated = ref(false) // 用户是否手动点过旋转按钮
+const isMobile = ref(window.innerWidth < 700) // 移动端阈值
 // 从后端返回的 HTML 中提取 base64 img src
 const comicImgSrc = computed(() => {
   if (!isComic.value || !chapterHtml.value) return ''
@@ -155,7 +156,8 @@ function onComicImgLoad(e: Event) {
   const shouldRotate = img.naturalWidth > img.naturalHeight
   // 用户没手动改过方向时,每页自动判断(不同页可能横竖混杂)
   // 用户一旦手动点过旋转按钮,就完全尊重用户选择,不再自动变
-  if (!userManualRotated.value) {
+  // 仅在移动端自动旋转,PC端不自动旋转
+  if (!userManualRotated.value && isMobile.value) {
     comicRotate90.value = shouldRotate
   }
   comicImgLoaded.value = true
@@ -209,13 +211,19 @@ onMounted(async () => {
     await loadChapter(curChapter.value)
   }
   window.addEventListener('keydown', onKeydown)
+  window.addEventListener('resize', onWindowResize)
   // 兜底保存:切后台/锁屏用 visibilitychange,关闭/刷新用 pagehide
   document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('pagehide', commitProgress)
 })
 
+function onWindowResize() {
+  isMobile.value = window.innerWidth < 700
+}
+
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('resize', onWindowResize)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('pagehide', commitProgress)
   // 离开阅读页(关闭/刷新)时立即写入最新进度
