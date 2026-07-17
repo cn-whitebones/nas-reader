@@ -499,12 +499,21 @@ onMounted(async () => {
   .hero {
     padding: 16px;
     gap: 14px;
-    /* 保持横排:小封面 + 右侧标题,不再纵向堆叠导致底部大量空白 */
-    align-items: flex-start;
+    /* stretch 让 cover 也跟随 info 拉伸,避免右侧信息比左侧封面高的错位 */
+    align-items: stretch;
   }
-  .cover { width: 96px; border-radius: 4px; }
-  /* 移动端:info 与 96px 封面等高(96*4/3=128px),而非 PC 的 240 */
-  .info { min-height: 128px; }
+  .cover {
+    width: 96px;
+    border-radius: 4px;
+    /* 移动端信息内容常常比 3/4 比例的封面高,取消 aspect-ratio,
+       让 cover 高度跟随 info(由 hero 的 align-items:stretch 撑开),
+       图片 object-fit: cover 保持视觉裁剪、生成封面 100% 自适应 */
+    aspect-ratio: unset;
+    min-height: 128px;
+    align-self: stretch;
+  }
+  /* 移动端 info 不再强设 min-height,由内容决定,cover 自动跟随 */
+  .info { min-height: 0; }
   .book-title { font-size: 17px; margin-bottom: 4px; }
   .subtitle { font-size: 12px; margin-bottom: 4px; }
   .author { font-size: 13px; margin-bottom: 8px; }
