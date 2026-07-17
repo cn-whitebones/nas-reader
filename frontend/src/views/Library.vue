@@ -397,12 +397,19 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 .hint { font-size: 12px; color: #a0a4ac; }
 
 @media (max-width: 700px) {
-  .sidebar-mask { display: block; }
+  /* sidebar 和 mask 从 header 下方开始:不覆盖 iOS 状态栏(safe-area-inset-top),
+     避免 PWA 状态栏被 mask 染灰后无法即时复位、看起来"关闭后颜色不一致" */
+  .sidebar-mask { display: block; top: calc(56px + env(safe-area-inset-top)); }
   .sidebar {
-    position: fixed; left: 0; top: 0; bottom: 0; z-index: 100;
+    position: fixed; left: 0; top: calc(56px + env(safe-area-inset-top)); bottom: 0; z-index: 100;
     transform: translateX(-100%); transition: transform 0.2s; box-shadow: 2px 0 12px rgba(0, 0, 0, 0.2);
   }
   .sidebar.open { transform: translateX(0); }
   .close-tree, .tree-toggle { display: inline-flex; }
+}
+/* Layout header 在 @media (max-width:600px) 里从 56 变 44,同步调整 */
+@media (max-width: 600px) {
+  .sidebar-mask { top: calc(44px + env(safe-area-inset-top)); }
+  .sidebar { top: calc(44px + env(safe-area-inset-top)); }
 }
 </style>
