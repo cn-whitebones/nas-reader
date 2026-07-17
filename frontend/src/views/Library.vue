@@ -37,7 +37,8 @@
     <section class="content">
       <!-- 工具栏 -->
       <div class="toolbar">
-        <el-button class="tree-toggle" @click="mobileTreeOpen = true">目录</el-button>
+        <!-- 目录:PC 隐藏(左侧固定树),移动端图标按钮 -->
+        <el-button class="tree-toggle" :icon="Menu" @click="mobileTreeOpen = true" circle title="目录" />
 
         <!-- PC:内联筛选与排序 -->
         <template v-if="!isMobile">
@@ -63,7 +64,7 @@
           <span class="path">{{ curDir || '全部' }} · {{ total }} 本</span>
         </template>
 
-        <!-- 移动端:精简,筛选排序收进抽屉 -->
+        <!-- 移动端:强制单行,搜索框 flex:1,其它全部图标化 -->
         <template v-else>
           <el-input
             v-model="keyword"
@@ -75,9 +76,8 @@
             @clear="onSearchSubmit"
           />
           <el-badge :is-dot="hasAdvancedFilter || !!formatFilter" class="filter-badge">
-            <el-button :icon="Operation" @click="filterPanel = true">筛选/排序</el-button>
+            <el-button :icon="Operation" @click="filterPanel = true" circle title="筛选/排序" />
           </el-badge>
-          <span class="path-m">{{ total }} 本</span>
         </template>
 
         <span class="spacer"></span>
@@ -86,6 +86,9 @@
           <el-radio-button value="list"><el-icon><List /></el-icon></el-radio-button>
         </el-radio-group>
       </div>
+
+      <!-- 移动端状态行:上工具栏留给操作,总数/当前目录单独一行,避免挤 -->
+      <div v-if="isMobile" class="status-m">{{ curDir || '全部' }} · {{ total }} 本</div>
 
       <BookGrid v-if="viewMode === 'grid'" :books="books" />
       <BookList v-else :books="books" />
@@ -170,7 +173,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Grid, List, Filter, Operation, SortUp, SortDown, Files, Search } from '@element-plus/icons-vue'
+import { Grid, List, Filter, Operation, SortUp, SortDown, Files, Search, Menu } from '@element-plus/icons-vue'
 import BookGrid from '@/components/BookGrid.vue'
 import BookList from '@/components/BookList.vue'
 import { booksApi, type BookBrief, type TreeNode } from '@/api/books'
@@ -407,13 +410,13 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 .content { flex: 1; min-width: 0; overflow-y: auto; padding-bottom: 40px; }
 .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
 .tree-toggle { display: none; }
-/* PC 搜索框:占据工具栏左侧,给筛选/排序留位置;flex-grow 让它自适应
-   剩余宽度,但设 max-width 免得筛选按钮被挤到下一行 */
+/* PC 搜索框:占据工具栏左侧,给筛选/排序留位置 */
 .search-input { width: 260px; }
 /* 移动端搜索框:紧凑,让筛选按钮同排显示 */
-.search-input-m { flex: 1; min-width: 120px; }
+.search-input-m { flex: 1; min-width: 0; }
+/* 移动端状态行:目录路径 + 总数,和工具栏分行,避免挤 */
+.status-m { display: none; color: #909399; font-size: 12px; margin: -8px 0 12px; }
 .path { color: #909399; font-size: 13px; }
-.path-m { color: #909399; font-size: 13px; }
 .spacer { flex: 1; }
 .pager { margin-top: 20px; justify-content: center; }
 .filter-badge :deep(.el-badge__content.is-dot) { top: 4px; right: 8px; }
@@ -438,6 +441,10 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
   }
   .sidebar.open { transform: translateX(0); }
   .close-tree, .tree-toggle { display: inline-flex; }
+  /* 工具栏强制单行:目录/筛选/视图切换全用图标,搜索框 flex 占中间;
+     禁用 wrap,gap 收紧,让 320px 窄屏也不会挤到换行 */
+  .toolbar { flex-wrap: nowrap; gap: 6px; margin-bottom: 8px; }
+  .status-m { display: block; }
 }
 /* Layout header 在 @media (max-width:600px) 里从 56 变 44,同步调整 */
 @media (max-width: 600px) {
