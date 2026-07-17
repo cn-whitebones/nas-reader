@@ -177,6 +177,7 @@ const comicSubPage = ref(0) // 子页:0=左半页,1=右半页
 const comicLeftImage = ref('') // 左半页图片
 const comicRightImage = ref('') // 右半页图片
 const comicOriginalImage = ref('') // 原图src
+const comicRotateHeightVh = ref(0) // 旋转后图片高度（vh 单位）,由 JS 精确计算
 const STORAGE_KEY_PREFIX = 'nas-reader:comic-pref:'
 
 // 读取漫画设置:localStorage 用户覆盖值 > 书籍默认值
@@ -248,6 +249,29 @@ function onComicImgLoad(e: Event) {
     // 未开启双页模式：仅在图片明显是横图时做一次旋转，以便竖屏阅读
     comicIsDoublePage.value = false
     comicRotate90.value = img.naturalWidth > img.naturalHeight
+    if (comicRotate90.value) {
+      // 旋转后精确计算最大尺寸，确保两个方向都不溢出屏幕:
+      // 旋转后:视觉高度方向 = 原始宽度，视觉宽度方向 = 原始高度
+      // CSS width 控制视觉高度方向，CSS height 自动按比例对应视觉宽度方向
+      // scale = min( 0.97*screenHeight / w, screenWidth / h )
+      // width_vh = scale * w / screenHeight * 100
+      const screenH = window.innerHeight
+      const screenW = window.innerWidth
+      const w = img.naturalWidth
+      const h = img.naturalHeight
+      const scaleByH = 0.97 * screenH / w
+      const scaleByW = screenW / h
+      const scale = Math.min(scaleByH, scaleByW)
+      const widthVh = (scale * w / screenH) * 100
+      const visualWVh = (scale * h / screenH) * 100
+      comicRotateHeightVh.value = widthVh
+      // 直接设置内联样式（旋转后 width/height 对调控制方向）
+      img.style.width = `${widthVh}vh`
+      img.style.height = 'auto'
+      img.style.maxWidth = 'none'
+      // margin 居中:基于视觉宽度（scale*h）计算
+      img.style.margin = `calc((100vw - ${visualWVh}vh) / 2) 0`
+    }
   } else {
     comicIsDoublePage.value = false
   }
@@ -279,6 +303,30 @@ function onComicImgError() {
 function toggleComicRotate() {
   userManualRotated.value = true
   comicRotate90.value = !comicRotate90.value
+  // 手动旋转也需要重新计算尺寸
+  if (comicRotate90.value && comicImgRef.value) {
+    const img = comicImgRef.value
+    const screenH = window.innerHeight
+    const screenW = window.innerWidth
+    const w = img.naturalWidth
+    const h = img.naturalHeight
+    const scaleByH = 0.97 * screenH / w
+    const scaleByW = screenW / h
+    const scale = Math.min(scaleByH, scaleByW)
+    const widthVh = (scale * w / screenH) * 100
+    const visualWVh = (scale * h / screenH) * 100
+    comicRotateHeightVh.value = widthVh
+    img.style.width = `${widthVh}vh`
+    img.style.height = 'auto'
+    img.style.maxWidth = 'none'
+    img.style.margin = `calc((100vw - ${visualWVh}vh) / 2) 0`
+  } else if (comicImgRef.value) {
+    // 关闭旋转，清除内联样式
+    comicImgRef.value.style.width = ''
+    comicImgRef.value.style.height = ''
+    comicImgRef.value.style.maxWidth = ''
+    comicImgRef.value.style.margin = ''
+  }
 }
 
 // 切换章节时重置加载状态,不清空旋转方向
@@ -647,13 +695,27 @@ function onVisibilityChange() {
   }
 }
 
-/* 横图旋转90度后,宽高互换:max-width 变成 max-height,占满屏幕高度 */
+/* 横图旋转90度，尺寸和边距由 JS 精确计算并设置内联样式 */
 .comic-page img.rotate-90 {
   transform: rotate(90deg);
-  max-width: none;
-  max-height: 100vw;
-  /* 旋转后会偏移,需要用 margin 拉回视口中心 */
-  margin: calc((100vw - 100vh) / 2) 0;
+}
+
+/* PC 端：不做额外调整，按常规显示 */
+@media (min-width: 700px) {
+  .comic-page img.rotate-90 {
+    max-width: 95vmin;
+    height: auto;
+  }
+}
+
+/* 移动端横屏：保守值兜底 */
+@media (max-width: 700px) and (orientation: landscape) {
+  .comic-page img.rotate-90 {
+    max-width: 90vh;
+    height: auto;
+    width: auto;
+    margin: calc((100vw - 90vh) / 2) 0;
+  }
 }
 
 /* 旋转切换按钮:右下角悬浮,半透明 */
