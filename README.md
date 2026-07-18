@@ -82,6 +82,70 @@ docker compose up -d --build
 
 > **数据与备份**:所有数据存于单个 SQLite 文件(`dbdata` 卷内 `/data/db/nasreader.db`),封面缩略图存于 `covers` 卷。备份只需复制这两个卷(或 `docker cp` 出 `.db` 文件)。无独立数据库容器,零运维。
 
+## 生产部署安全建议
+
+> **重要**:登录/注册/改密码接口在应用层使用明文传输密码（服务端用 bcrypt 加盐哈希落库,这是行业标准做法）,**密码在网络链路上的机密性完全依赖 HTTPS**。因此**生产环境请务必通过反向代理启用 TLS**,不要让 8080 端口直接暴露在互联网或不可信网络。
+
+三种典型部署形态:
+
+| 场景 | 建议 |
+|---|---|
+| 仅内网/NAS 局域网访问 | 可直连 HTTP,风险由内网边界控制 |
+| 需要公网访问 | **必须**在前面加反向代理 + TLS 证书 |
+| 使用群晖/威联通反代 | 在 NAS 的反代面板给 nas-reader 加一条 HTTPS 规则即可,证书由 NAS 自动管理 |
+
+### 方案 A:Caddy(推荐,自动申请与续期证书)
+
+```caddy
+# /etc/caddy/Caddyfile
+reader.example.com {
+    reverse_proxy 127.0.0.1:8080
+    encode zstd gzip
+}
+```
+
+启动 Caddy 后即会自动为该域名申请 Let's Encrypt 证书,零配置。
+
+### 方案 B:Nginx + Let's Encrypt
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name reader.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/reader.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/reader.example.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    # HSTS:强制浏览器只走 HTTPS(确认证书稳定后再开启)
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    client_max_body_size 200m;   # 允许上传较大电子书/漫画包
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 80;
+    server_name reader.example.com;
+    return 301 https://$host$request_uri;
+}
+```
+
+证书使用 `certbot certonly --nginx -d reader.example.com` 申请,systemd timer 或 cron 会自动续期。
+
+### 其它建议
+
+- **JWT_SECRET**:务必用 `openssl rand -hex 32` 生成一个强随机值填入 `.env`,不要用默认或短字符串
+- **管理员密码**:引导页创建时选择足够复杂的密码；应用暂未对登录接口做速率限制,可在反向代理层加一条 `limit_req` 兜底防暴力破解
+- **书目录挂载**:保持 `:ro` 只读,应用不会写回源目录
+
 ## 目录结构
 
 ```
@@ -132,7 +196,33 @@ npm run dev   # 默认 http://localhost:5173，已代理 /api 到 :8000
 - 磁盘文件删除后图书标记为 `missing`，保留记录与进度
 - 阅读进度存 `location`(格式相关定位)+ `percent`(统一百分比)
 
-## 开发进度 v1.1
+## 开发进度
+
+### v1.3 漫画双页阅读优化
+
+- [x] 双页漫画切割: 横图横向切分为左右半页，竖屏逐页阅读
+- [x] 阅读方向选择: 支持从左页开始(美漫) / 从右页开始(日漫)，管理员设全局默认
+- [x] 用户本地覆盖: 普通用户可在阅读器设置内临时调整，不影响其他人
+- [x] 跨章翻页自动定位: 向前翻页自动定位到上一章的末半页
+- [x] 自动旋转优化: JS 精确计算最大尺寸，充分利用屏幕空间不溢出
+- [x] 漫画设置仅移动端显示: PC 端无需双页切割，保持全屏原图
+
+### v1.2.1 书库体验优化
+
+- [x] 书库多维筛选与排序(字数区间/章节区间/拼音/字数/章节),PC + 移动自适应
+- [x] 无封面书自动生成竖排书名封面(书脊风格,按书名 hash 双色渐变)
+- [x] 网格卡片统一 4 行结构(书名/作者/章节/字数),各行固定高度,视觉整齐
+- [x] txt 章节识别改进:支持单空格分隔标题;无章节书不再机械分块
+- [x] 扫描任务改独立线程池,不再阻塞事件循环
+- [x] 首次登录改密页/404 路由/弱密钥分级校验
+
+### v1.2 架构精简
+
+- [x] 数据库 PostgreSQL → SQLite(单文件,零运维,备份即复制)
+- [x] 前后端合并为单容器(FastAPI 托管前端静态资源 + SPA 回退 + PWA 缓存头)
+- [x] 部署从三容器(frontend/backend/postgres)精简为一个容器
+
+### v1.1 基础功能
 
 - [x] 后端骨架(FastAPI + DB + 鉴权 + 用户/权限/引导)
 - [x] 前端骨架(路由 + 鉴权 + 引导/登录/布局)
@@ -147,27 +237,3 @@ npm run dev   # 默认 http://localhost:5173，已代理 /api 到 :8000
 - [x] PC/移动端自适应(登录页/书架/详情/管理页卡片布局)
 - [x] iOS PWA 全屏底部白边修复
 - [x] 书库列表/网格双视图切换(localStorage 记忆)
-
-## v1.3 漫画双页阅读优化
-
-- [x] 双页漫画切割: 横图横向切分为左右半页，竖屏逐页阅读
-- [x] 阅读方向选择: 支持从左页开始(美漫) / 从右页开始(日漫)，管理员设全局默认
-- [x] 用户本地覆盖: 普通用户可在阅读器设置内临时调整，不影响其他人
-- [x] 跨章翻页自动定位: 向前翻页自动定位到上一章的末半页
-- [x] 自动旋转优化: JS 精确计算最大尺寸，充分利用屏幕空间不溢出
-- [x] 漫画设置仅移动端显示: PC 端无需双页切割，保持全屏原图
-
-## v1.2 架构精简
-
-- [x] 数据库 PostgreSQL → SQLite(单文件,零运维,备份即复制)
-- [x] 前后端合并为单容器(FastAPI 托管前端静态资源 + SPA 回退 + PWA 缓存头)
-- [x] 部署从三容器(frontend/backend/postgres)精简为一个容器
-
-## v1.2.1 书库体验优化
-
-- [x] 书库多维筛选与排序(字数区间/章节区间/拼音/字数/章节),PC + 移动自适应
-- [x] 无封面书自动生成竖排书名封面(书脊风格,按书名 hash 双色渐变)
-- [x] 网格卡片统一 4 行结构(书名/作者/章节/字数),各行固定高度,视觉整齐
-- [x] txt 章节识别改进:支持单空格分隔标题;无章节书不再机械分块
-- [x] 扫描任务改独立线程池,不再阻塞事件循环
-- [x] 首次登录改密页/404 路由/弱密钥分级校验
