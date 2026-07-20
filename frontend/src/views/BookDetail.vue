@@ -157,6 +157,10 @@
               <el-option label="Google Books" value="google" />
               <el-option label="Open Library" value="openlibrary" />
             </el-select>
+            <el-select v-model="scrapeLimit" class="limit-select" title="候选数量(豆瓣数量越大越慢)">
+              <el-option :label="`${5} 条`" :value="5" />
+              <el-option :label="`${10} 条`" :value="10" />
+            </el-select>
             <el-button type="primary" :loading="scraping" @click="runScrape">搜索</el-button>
           </div>
 
@@ -184,7 +188,7 @@
           </div>
 
           <div class="candidates">
-            <div v-for="(c, i) in candidates" :key="i" class="candidate" @click="applyCandidate(c)">
+            <div v-for="(c, i) in pagedCandidates" :key="i" class="candidate" @click="applyCandidate(c)">
               <CandidateCover :url="c.cover_url" />
               <div class="cand-info">
                 <div class="cand-title">{{ c.title }} <el-tag size="small">{{ providerLabel(c.provider) }}</el-tag></div>
@@ -193,6 +197,11 @@
               </div>
             </div>
             <el-empty v-if="scrapeSearched && !candidates.length" :description="emptyHint" />
+          </div>
+          <div v-if="candidates.length > PAGE_SIZE" class="cand-pager">
+            <el-button size="small" text :disabled="candPage === 0" @click="candPage--">上一页</el-button>
+            <span class="cand-pager-info">{{ candPage + 1 }} / {{ totalCandPages }}</span>
+            <el-button size="small" text :disabled="candPage >= totalCandPages - 1" @click="candPage++">下一页</el-button>
           </div>
         </el-tab-pane>
         <el-tab-pane label="手动编辑" name="manual">
@@ -296,7 +305,15 @@ const sizeLabel = computed(() => ((book.value?.file_size || 0) >= 1024 * 1024 ? 
 const scrapeDialog = ref(false)
 const scrapeKeyword = ref('')
 const scrapeProvider = ref<string | undefined>(undefined)
+const scrapeLimit = ref(5)
 const candidates = ref<Candidate[]>([])
+// 候选前端分页:每页固定 PAGE_SIZE 个
+const PAGE_SIZE = 5
+const candPage = ref(0)
+const totalCandPages = computed(() => Math.max(1, Math.ceil(candidates.value.length / PAGE_SIZE)))
+const pagedCandidates = computed(() =>
+  candidates.value.slice(candPage.value * PAGE_SIZE, (candPage.value + 1) * PAGE_SIZE),
+)
 const scraping = ref(false)
 const applying = ref(false)
 const scrapeSteps = ref<ScrapeStep[]>([])
@@ -325,6 +342,7 @@ function openScrapeDialog() {
   editTab.value = 'scrape'
   scrapeSteps.value = []
   candidates.value = []
+  candPage.value = 0
   scrapeSearched.value = false
   traceCollapsed.value = false
   if (md.value) {
@@ -421,29 +439,36 @@ function runScrape() {
   scraping.value = true
   scrapeSteps.value = []
   candidates.value = []
+  candPage.value = 0
   scrapeSearched.value = false
   traceCollapsed.value = false
 
-  cancelStream = scrapeStream(scrapeKeyword.value, scrapeProvider.value, {
-    onStep: (step) => {
-      scrapeSteps.value.push(step)
+  cancelStream = scrapeStream(
+    scrapeKeyword.value,
+    scrapeProvider.value,
+    {
+      onStep: (step) => {
+        scrapeSteps.value.push(step)
+      },
+      onDone: (cands) => {
+        candidates.value = cands
+        candPage.value = 0
+        scrapeSearched.value = true
+        scraping.value = false
+        cancelStream = null
+        // 命中候选后自动折叠过程区,只突出结果;无结果则保留过程便于排查
+        traceCollapsed.value = cands.length > 0
+      },
+      onError: (msg) => {
+        scrapeSteps.value.push({ provider: '', level: 'error', message: msg })
+        scrapeSearched.value = true
+        scraping.value = false
+        cancelStream = null
+        ElMessage.error(msg)
+      },
     },
-    onDone: (cands) => {
-      candidates.value = cands
-      scrapeSearched.value = true
-      scraping.value = false
-      cancelStream = null
-      // 命中候选后自动折叠过程区,只突出结果;无结果则保留过程便于排查
-      traceCollapsed.value = cands.length > 0
-    },
-    onError: (msg) => {
-      scrapeSteps.value.push({ provider: '', level: 'error', message: msg })
-      scrapeSearched.value = true
-      scraping.value = false
-      cancelStream = null
-      ElMessage.error(msg)
-    },
-  })
+    scrapeLimit.value,
+  )
 }
 
 async function applyCandidate(c: Candidate) {
@@ -671,8 +696,17 @@ onMounted(async () => {
 .scrape-head { display: flex; gap: 10px; margin-bottom: 16px; }
 .kw-input { flex: 1; min-width: 0; }
 .provider-select { width: 160px; }
+.limit-select { width: 96px; }
+.cand-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 8px 0 2px;
+}
+.cand-pager-info { font-size: 13px; color: var(--el-text-color-secondary); }
 .scrape-trace {
-  background: #f8f9fb;
+  background: var(--el-fill-color-light);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
   padding: 10px 12px;
@@ -694,7 +728,7 @@ onMounted(async () => {
 }
 .scrape-trace.collapsed .trace-head { margin-bottom: 0; }
 .trace-toggle { display: inline-block; width: 14px; color: var(--el-text-color-secondary); }
-.trace-running { font-weight: 400; color: #409eff; margin-left: 6px; }
+.trace-running { font-weight: 400; color: var(--el-color-primary); margin-left: 6px; }
 .trace-summary { font-weight: 400; color: var(--el-text-color-secondary); }
 .trace-step {
   display: flex;
@@ -707,26 +741,26 @@ onMounted(async () => {
 .trace-provider {
   flex-shrink: 0;
   color: var(--el-text-color-secondary);
-  background: #eef0f3;
+  background: var(--el-fill-color);
   border-radius: 4px;
   padding: 0 5px;
   font-size: 12px;
 }
 .trace-msg { flex: 1; word-break: break-all; }
 .trace-time { flex-shrink: 0; color: var(--el-text-color-placeholder); font-size: 12px; }
-.lv-success { color: #67c23a; }
-.lv-success .trace-icon { color: #67c23a; }
-.lv-warning { color: #e6a23c; }
-.lv-warning .trace-icon { color: #e6a23c; }
-.lv-error { color: #f56c6c; }
-.lv-error .trace-icon { color: #f56c6c; }
+.lv-success { color: var(--el-color-success); }
+.lv-success .trace-icon { color: var(--el-color-success); }
+.lv-warning { color: var(--el-color-warning); }
+.lv-warning .trace-icon { color: var(--el-color-warning); }
+.lv-error { color: var(--el-color-danger); }
+.lv-error .trace-icon { color: var(--el-color-danger); }
 .candidates { max-height: 52vh; overflow-y: auto; }
 .candidate { display: flex; gap: 12px; padding: 12px; border-radius: 8px; cursor: pointer; }
 .candidate:hover { background: var(--el-fill-color-light); }
 .cand-info { min-width: 0; flex: 1; }
 .cand-title { font-weight: 600; overflow-wrap: anywhere; }
 .cand-sub { font-size: 13px; color: var(--el-text-color-secondary); margin: 4px 0; overflow-wrap: anywhere; }
-.cand-desc { font-size: 12px; color: #b0b3b8; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cand-desc { font-size: 12px; color: var(--el-text-color-placeholder); display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* ---------- 移动端 ---------- */
 @media (max-width: 700px) {
@@ -790,6 +824,7 @@ onMounted(async () => {
 
   .scrape-head { flex-direction: column; }
   .provider-select { width: 100%; }
+  .limit-select { width: 100%; }
 }
 
 /* 极窄屏(<360px):指标卡改 2×2 */

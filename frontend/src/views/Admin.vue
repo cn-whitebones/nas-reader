@@ -102,6 +102,30 @@
       <!-- 刮削设置 -->
       <el-tab-pane label="刮削设置" name="scrape">
         <div class="scrape-settings">
+          <h3 class="ss-title">刮削源</h3>
+          <p class="ss-desc">
+            控制「自动」模式下的来源顺序与启用状态。刮削时按从上到下的顺序依次尝试,命中即停止。
+            关闭某个源后,自动模式将跳过它。
+          </p>
+          <div class="provider-list">
+            <div v-for="(p, idx) in providers" :key="p.provider" class="provider-row">
+              <span class="pr-order">{{ idx + 1 }}</span>
+              <span class="pr-name">{{ p.label || p.provider }}</span>
+              <el-switch v-model="p.enabled" />
+              <div class="pr-actions">
+                <el-button size="small" :disabled="idx === 0" @click="moveProvider(idx, -1)">上移</el-button>
+                <el-button size="small" :disabled="idx === providers.length - 1" @click="moveProvider(idx, 1)">
+                  下移
+                </el-button>
+              </div>
+            </div>
+          </div>
+          <div class="ss-actions">
+            <el-button type="primary" :loading="savingProviders" @click="saveProviders">保存刮削源</el-button>
+          </div>
+
+          <el-divider />
+
           <h3 class="ss-title">豆瓣 Cookie</h3>
           <p class="ss-desc">
             豆瓣未登录时极易被反爬拦截,导致刮削失败。配置浏览器登录豆瓣后的 Cookie 可显著提高成功率。
@@ -128,30 +152,6 @@
             <el-button v-if="scrapeSettings.douban_cookie_set" :loading="savingScrape" @click="clearDoubanCookie">
               清除
             </el-button>
-          </div>
-
-          <el-divider />
-
-          <h3 class="ss-title">刮削源</h3>
-          <p class="ss-desc">
-            控制「自动」模式下的来源顺序与启用状态。刮削时按从上到下的顺序依次尝试,命中即停止。
-            关闭某个源后,自动模式将跳过它。
-          </p>
-          <div class="provider-list">
-            <div v-for="(p, idx) in providers" :key="p.provider" class="provider-row">
-              <span class="pr-order">{{ idx + 1 }}</span>
-              <span class="pr-name">{{ p.label || p.provider }}</span>
-              <el-switch v-model="p.enabled" />
-              <div class="pr-actions">
-                <el-button size="small" :disabled="idx === 0" @click="moveProvider(idx, -1)">上移</el-button>
-                <el-button size="small" :disabled="idx === providers.length - 1" @click="moveProvider(idx, 1)">
-                  下移
-                </el-button>
-              </div>
-            </div>
-          </div>
-          <div class="ss-actions">
-            <el-button type="primary" :loading="savingProviders" @click="saveProviders">保存刮削源</el-button>
           </div>
         </div>
       </el-tab-pane>
@@ -488,7 +488,7 @@ onBeforeUnmount(() => {
 .hint { color: #909399; font-size: 13px; }
 .perm-row { padding: 6px 0; }
 .perm-row .path { color: #c0c4cc; font-size: 12px; margin-left: 6px; }
-.scrape-settings { max-width: 640px; }
+.scrape-settings { max-width: 640px; padding-bottom: 32px; }
 .ss-title { font-size: 16px; margin: 0 0 8px; color: var(--el-text-color-primary); }
 .ss-desc { color: var(--el-text-color-secondary); font-size: 13px; line-height: 1.7; margin: 0 0 12px; }
 .ss-desc a { color: var(--el-color-primary); }

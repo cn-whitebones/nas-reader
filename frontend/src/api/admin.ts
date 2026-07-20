@@ -130,11 +130,13 @@ export function scrapeStream(
     onDone: (candidates: Candidate[]) => void
     onError: (message: string) => void
   },
+  limit?: number,
 ): () => void {
   const auth = useAuthStore()
   const controller = new AbortController()
   const params = new URLSearchParams({ keyword })
   if (provider) params.set('provider', provider)
+  if (limit) params.set('limit', String(limit))
 
   ;(async () => {
     try {
