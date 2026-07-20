@@ -26,7 +26,9 @@ const container = ref<HTMLElement>()
 const canvas = ref<HTMLCanvasElement>()
 const pageNum = ref(props.initialPage || 1)
 const totalPages = ref(0)
-const scale = ref(1.2)
+// scale=null 表示自动适配整页到视口(点击翻页体验需要单页可见,不产生滚动);
+// 用户主动放大/缩小后变为具体数值,进入手动缩放模式
+const scale = ref<number | null>(null)
 let pdfDoc: any = null
 
 async function load() {
@@ -40,10 +42,21 @@ async function load() {
   await render()
 }
 
+// 计算"整页可见"的缩放比:取宽/高两个方向能容纳的较小者
+function fitScale(page: any): number {
+  const base = page.getViewport({ scale: 1 })
+  const el = container.value
+  if (!el) return 1.2
+  const availW = Math.max(el.clientWidth - 24, 100)
+  const availH = Math.max(el.clientHeight - 24, 100)
+  return Math.min(availW / base.width, availH / base.height)
+}
+
 async function render() {
   if (!pdfDoc || !canvas.value) return
   const page = await pdfDoc.getPage(pageNum.value)
-  const viewport = page.getViewport({ scale: scale.value })
+  const s = scale.value ?? fitScale(page)
+  const viewport = page.getViewport({ scale: s })
   const ctx = canvas.value.getContext('2d')!
   canvas.value.width = viewport.width
   canvas.value.height = viewport.height
@@ -56,18 +69,26 @@ function go(n: number) {
   pageNum.value = n
   render()
 }
-function zoom(delta: number) {
-  scale.value = Math.min(Math.max(scale.value + delta, 0.5), 3)
+function next() { go(pageNum.value + 1) }
+function prev() { go(pageNum.value - 1) }
+async function zoom(delta: number) {
+  // 从自动适配切到手动模式时,先取当前适配比作为基准
+  if (scale.value == null && pdfDoc) {
+    const page = await pdfDoc.getPage(pageNum.value)
+    scale.value = fitScale(page)
+  }
+  scale.value = Math.min(Math.max((scale.value ?? 1.2) + delta, 0.5), 3)
   render()
 }
 
 watch(() => props.initialPage, (p) => { if (p) { pageNum.value = p; render() } })
 onMounted(load)
-defineExpose({ go })
+defineExpose({ go, next, prev })
 </script>
 
 <style scoped>
-.pdf-reader { display: flex; flex-direction: column; align-items: center; padding: 16px; background: #525659; min-height: 100%; }
-canvas { max-width: 100%; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4); }
-.pdf-nav { position: sticky; bottom: calc(8px + env(safe-area-inset-bottom)); display: flex; gap: 8px; align-items: center; padding: 10px; background: rgba(0,0,0,0.6); color: #fff; border-radius: 8px; margin-top: 12px; }
+.pdf-reader { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 12px; background: #525659; box-sizing: border-box; overflow: hidden; }
+canvas { max-width: 100%; max-height: 100%; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4); }
+/* 缩放/翻页条:固定在底部并置于点击翻页层(z-index:10)之上,保证可点击 */
+.pdf-nav { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 30; display: flex; gap: 8px; align-items: center; padding: 10px; background: rgba(0,0,0,0.6); color: #fff; border-radius: 8px; }
 </style>

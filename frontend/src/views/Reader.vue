@@ -25,12 +25,20 @@
       </div>
       <template v-if="book">
         <!-- PDF:保持原生 pdf.js 翻页 -->
-        <PdfReader
-          v-if="book?.format === 'pdf'"
-          :file-url="fileUrl"
-          :initial-page="Number(initialLocation) || 1"
-          @page-change="onPdfPage"
-        />
+        <template v-if="book?.format === 'pdf'">
+          <PdfReader
+            ref="pdfReaderRef"
+            :file-url="fileUrl"
+            :initial-page="Number(initialLocation) || 1"
+            @page-change="onPdfPage"
+          />
+          <!-- 点击翻页区域:左/右翻页,中间切换工具栏(与文本/漫画一致) -->
+          <div class="tap-zones" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd" @click="onTapZoneClick">
+            <div class="tap-zone left" data-zone="left"></div>
+            <div class="tap-zone center" data-zone="center"></div>
+            <div class="tap-zone right" data-zone="right"></div>
+          </div>
+        </template>
         <!-- 漫画:单图显示,自动检测横图旋转90度;移动端双页横图自动切分为左右两页 -->
         <template v-else-if="book?.format === 'comic'">
           <div class="comic-page" ref="comicPageRef">
@@ -164,6 +172,7 @@ const htmlFirstPage = ref(true)
 const htmlLastPage = ref(false)
 
 const htmlReaderRef = ref<InstanceType<typeof HtmlReader>>()
+const pdfReaderRef = ref<InstanceType<typeof PdfReader>>()
 
 const fileUrl = computed(() => booksApi.fileUrl(bookId))
 const drawerSize = computed(() => (window.innerWidth < 600 ? '80%' : 320))
@@ -478,6 +487,11 @@ function updatePageFlags() {
 
 // —— 翻页(含跨章节)——
 function nextPageOrChapter() {
+  // PDF:交给 pdf.js 翻到下一页(到末页自动无效)
+  if (book.value?.format === 'pdf') {
+    pdfReaderRef.value?.next()
+    return
+  }
   // 漫画:一页一章;双页则先翻到跨页的另一半(按阅读方向)
   if (isComic.value) {
     if (comicIsDoublePage.value) {
@@ -505,6 +519,11 @@ function nextPageOrChapter() {
   }
 }
 function prevPageOrChapter() {
+  // PDF:交给 pdf.js 翻到上一页
+  if (book.value?.format === 'pdf') {
+    pdfReaderRef.value?.prev()
+    return
+  }
   // 漫画:双页则先翻回跨页的第一半;否则上一章
   if (isComic.value) {
     if (comicIsDoublePage.value) {
@@ -541,7 +560,7 @@ function onTapZoneClick(e: MouseEvent) {
 
 // —— 键盘(PC)——
 function onKeydown(e: KeyboardEvent) {
-  if (!book.value || book.value.format === 'pdf') return
+  if (!book.value) return
   if (e.key === 'ArrowRight' || e.key === 'PageDown') nextPageOrChapter()
   else if (e.key === 'ArrowLeft' || e.key === 'PageUp') prevPageOrChapter()
 }
