@@ -12,6 +12,7 @@ const routes: RouteRecordRaw[] = [
       { path: '', redirect: '/library' },
       { path: 'library', name: 'library', component: () => import('@/views/Library.vue') },
       { path: 'shelves', name: 'shelves', component: () => import('@/views/Shelves.vue') },
+      { path: 'me', name: 'me', component: () => import('@/views/My.vue') },
       // 搜索合并入书库,旧收藏链接 /search?q=xxx 重定向到 /library?q=xxx
       { path: 'search', redirect: (to) => ({ path: '/library', query: to.query }) },
       { path: 'books/:id', name: 'book-detail', component: () => import('@/views/BookDetail.vue') },

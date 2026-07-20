@@ -1,23 +1,16 @@
 <template>
   <el-container class="layout">
-    <!-- 顶栏:桌面端含完整导航;移动端仅 logo + 用户信息 -->
+    <!-- 顶栏:桌面端含完整导航;移动端仅 logo + 用户名 -->
     <el-header v-if="!isReader" class="header">
       <span class="logo">📚 NAS Reader</span>
       <el-menu mode="horizontal" :router="true" :default-active="activeMenu" class="nav desktop-only">
         <el-menu-item index="/library">书库</el-menu-item>
         <el-menu-item index="/shelves">书架</el-menu-item>
         <el-menu-item v-if="auth.isAdmin" index="/admin">管理</el-menu-item>
+        <el-menu-item index="/me">我的</el-menu-item>
       </el-menu>
       <span class="spacer mobile-only"></span>
-      <el-dropdown @command="onCommand">
-        <span class="user">{{ auth.user?.username }} <el-icon><arrow-down /></el-icon></span>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item command="password">修改密码</el-dropdown-item>
-            <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
+      <span class="user">{{ auth.user?.username }}</span>
     </el-header>
 
     <el-main class="main" :class="{ 'reader-mode': isReader, 'has-tabbar': !isReader }">
@@ -37,43 +30,18 @@
         <span class="tab-label">{{ item.label }}</span>
       </RouterLink>
     </nav>
-
-    <!-- 修改密码 -->
-    <el-dialog v-model="pwdVisible" title="修改密码" :width="dialogWidth" @closed="resetPwdForm">
-      <el-form ref="pwdFormRef" :model="pwdForm" :rules="pwdRules" label-width="94px">
-        <el-form-item label="原密码" prop="oldPassword">
-          <el-input v-model="pwdForm.oldPassword" type="password" show-password />
-        </el-form-item>
-        <el-form-item label="新密码" prop="newPassword">
-          <el-input v-model="pwdForm.newPassword" type="password" show-password />
-        </el-form-item>
-        <el-form-item label="确认新密码" prop="confirmPassword">
-          <el-input v-model="pwdForm.confirmPassword" type="password" show-password />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="pwdVisible = false">取消</el-button>
-        <el-button type="primary" :loading="pwdSubmitting" @click="submitPassword">确定</el-button>
-      </template>
-    </el-dialog>
   </el-container>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
-import { ArrowDown, Reading, Collection, Setting } from '@element-plus/icons-vue'
-import { useRoute, useRouter, RouterLink } from 'vue-router'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { computed } from 'vue'
+import { Reading, Collection, Setting, User } from '@element-plus/icons-vue'
+import { useRoute, RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { authApi } from '@/api/auth'
 
 const auth = useAuthStore()
-const router = useRouter()
 const route = useRoute()
 const isReader = computed(() => route.name === 'reader')
-
-// 弹窗宽度:移动端窄屏用近似全宽
-const dialogWidth = computed(() => (window.innerWidth < 768 ? '94vw' : '460px'))
 
 // 顶部菜单高亮:详情/阅读页归属书库
 const activeMenu = computed(() => {
@@ -88,66 +56,13 @@ const tabs = computed(() => {
     { path: '/shelves', label: '书架', icon: Collection },
   ]
   if (auth.isAdmin) base.push({ path: '/admin', label: '管理', icon: Setting })
+  base.push({ path: '/me', label: '我的', icon: User })
   return base
 })
 
 function isActiveTab(path: string) {
   if (path === '/library') return route.path.startsWith('/library') || route.path.startsWith('/books')
   return route.path.startsWith(path)
-}
-
-function onCommand(cmd: string) {
-  if (cmd === 'logout') {
-    auth.logout()
-    router.push('/login')
-  } else if (cmd === 'password') {
-    pwdVisible.value = true
-  }
-}
-
-// ---- 修改密码 ----
-const pwdVisible = ref(false)
-const pwdSubmitting = ref(false)
-const pwdFormRef = ref<FormInstance>()
-const pwdForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
-const pwdRules: FormRules = {
-  oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
-  newPassword: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, max: 128, message: '密码长度 6-128 位', trigger: 'blur' },
-  ],
-  confirmPassword: [
-    { required: true, message: '请再次输入新密码', trigger: 'blur' },
-    {
-      validator: (_r, value, cb) =>
-        value === pwdForm.newPassword ? cb() : cb(new Error('两次输入的密码不一致')),
-      trigger: 'blur',
-    },
-  ],
-}
-
-function resetPwdForm() {
-  pwdForm.oldPassword = ''
-  pwdForm.newPassword = ''
-  pwdForm.confirmPassword = ''
-  pwdFormRef.value?.clearValidate()
-}
-
-async function submitPassword() {
-  if (!pwdFormRef.value) return
-  await pwdFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    pwdSubmitting.value = true
-    try {
-      await authApi.changePassword(pwdForm.oldPassword, pwdForm.newPassword)
-      ElMessage.success('密码已修改')
-      pwdVisible.value = false
-    } catch (e: any) {
-      ElMessage.error(e?.response?.data?.detail || '修改失败')
-    } finally {
-      pwdSubmitting.value = false
-    }
-  })
 }
 </script>
 
@@ -169,7 +84,7 @@ async function submitPassword() {
 /* el-menu 横向默认 60px 高,强制与 header 内容区同高并去掉自带边框,避免撑出/错位 */
 .nav { flex: 1; min-width: 0; height: 56px; border-bottom: none; }
 .nav :deep(.el-menu-item) { height: 56px; line-height: 56px; }
-.user { cursor: pointer; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.user { display: flex; align-items: center; gap: 4px; white-space: nowrap; color: #606266; }
 .spacer { flex: 1; }
 .main { background: #f5f7fa; }
 /* 阅读器模式:去掉 el-main 默认内边距与滚动,交给阅读器内部自行滚动 */
