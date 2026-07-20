@@ -1,10 +1,12 @@
-"""刮削路由:搜索候选、触发刮削、应用候选、手动编辑元数据。"""
+"""刮削路由:搜索候选、触发刮削、应用候选、手动编辑元数据、封面图片代理。"""
 import os
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.deps import get_current_admin, get_current_user
 from app.db.session import get_db
 from app.models.book import Book, BookMetadata, MetadataProviderName
@@ -32,6 +34,32 @@ def _to_result(keyword: str, candidates, tracer: ScrapeTracer) -> ScrapeResult:
         candidates=[CandidateOut(**c.__dict__) for c in candidates],
         steps=[ScrapeStepOut(**s.__dict__) for s in tracer.steps],
     )
+
+
+@router.get("/scrape/cover-proxy")
+async def scrape_cover_proxy(
+    url: str = Query(min_length=1, max_length=1000),
+    _user: User = Depends(get_current_admin),
+):
+    """代理拉取候选封面图片。
+
+    豆瓣等图床有 Referer 防盗链,浏览器直接 <img src> 请求会被拒(403),
+    导致候选封面在预览时加载失败。此处后端带 Referer 拉图后回传,仅管理员可用。
+    """
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="非法图片地址")
+    headers = {"User-Agent": "Mozilla/5.0", "Referer": "https://book.douban.com/"}
+    try:
+        async with httpx.AsyncClient(
+            timeout=settings.scrape_timeout_seconds, headers=headers, follow_redirects=True
+        ) as client:
+            resp = await client.get(url)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="图片拉取失败")
+    if resp.status_code != 200:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"图源返回 {resp.status_code}")
+    media_type = resp.headers.get("Content-Type", "image/jpeg")
+    return Response(content=resp.content, media_type=media_type)
 
 
 @router.get("/scrape/search", response_model=ScrapeResult)

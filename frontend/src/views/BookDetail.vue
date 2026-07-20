@@ -178,7 +178,7 @@
 
           <div class="candidates">
             <div v-for="(c, i) in candidates" :key="i" class="candidate" @click="applyCandidate(c)">
-              <img v-if="c.cover_url" :src="c.cover_url" class="cand-cover" />
+              <CandidateCover :url="c.cover_url" />
               <div class="cand-info">
                 <div class="cand-title">{{ c.title }} <el-tag size="small">{{ providerLabel(c.provider) }}</el-tag></div>
                 <div class="cand-sub">{{ c.authors.join(', ') }} · {{ c.publisher || '' }} {{ c.pub_date || '' }}</div>
@@ -219,6 +219,7 @@ import { scrapeApi, type Candidate, type ScrapeStep } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
 import CoverImage from '@/components/CoverImage.vue'
 import GeneratedCover from '@/components/GeneratedCover.vue'
+import CandidateCover from '@/components/CandidateCover.vue'
 
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.isAdmin)
@@ -679,7 +680,6 @@ onMounted(async () => {
 .candidates { max-height: 52vh; overflow-y: auto; }
 .candidate { display: flex; gap: 12px; padding: 12px; border-radius: 8px; cursor: pointer; }
 .candidate:hover { background: #f5f7fa; }
-.cand-cover { width: 60px; height: 84px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
 .cand-info { min-width: 0; flex: 1; }
 .cand-title { font-weight: 600; overflow-wrap: anywhere; }
 .cand-sub { font-size: 13px; color: #909399; margin: 4px 0; overflow-wrap: anywhere; }
