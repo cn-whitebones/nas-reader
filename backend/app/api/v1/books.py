@@ -48,6 +48,7 @@ def _brief(book: Book) -> BookBrief:
         word_count=book.word_count,
         file_size=book.file_size,
         has_cover=bool(book.cover_path),
+        cover_version=md.scraped_at.isoformat() if md and md.scraped_at else None,
         title=md.title if md else None,
         authors=md.authors if md else [],
     )

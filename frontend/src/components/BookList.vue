@@ -2,7 +2,7 @@
   <div class="book-list">
     <div v-for="b in books" :key="b.id" class="book-item" @click="$router.push(`/books/${b.id}`)">
       <div class="cover-wrap">
-        <CoverImage v-if="b.has_cover" :book-id="b.id" :alt="b.file_name" />
+        <CoverImage v-if="b.has_cover" :book-id="b.id" :alt="b.file_name" :version="b.cover_version" />
         <GeneratedCover v-else :title="b.title || b.file_name" :format="b.format" compact />
       </div>
       <div class="book-info">

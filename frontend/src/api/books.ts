@@ -17,6 +17,7 @@ export interface BookBrief {
   word_count: number | null
   file_size: number
   has_cover: boolean
+  cover_version?: string | null
   title: string | null
   authors: string[]
 }

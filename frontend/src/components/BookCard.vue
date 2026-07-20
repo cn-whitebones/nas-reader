@@ -1,7 +1,7 @@
 <template>
   <div class="book-card" @click="$router.push(`/books/${book.id}`)">
     <div class="cover">
-      <CoverImage v-if="book.has_cover" :book-id="book.id" :alt="displayTitle" />
+      <CoverImage v-if="book.has_cover" :book-id="book.id" :alt="displayTitle" :version="book.cover_version" />
       <GeneratedCover v-else :title="displayTitle" :format="book.format" />
       <span class="badge">{{ book.format.toUpperCase() }}</span>
     </div>

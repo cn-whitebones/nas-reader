@@ -75,6 +75,8 @@ class BookBrief(BaseModel):
     word_count: int | None = None
     file_size: int = 0
     has_cover: bool = False
+    # 封面版本(取 metadata.scraped_at):变化时前端强制重载封面,避免固定文件名被缓存
+    cover_version: str | None = None
     title: str | None = None
     authors: list[str] = []
 
