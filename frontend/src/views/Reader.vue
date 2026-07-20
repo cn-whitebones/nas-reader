@@ -5,10 +5,6 @@
       <el-button link @click="router.back()"><el-icon><ArrowLeft /></el-icon> 返回</el-button>
       <span class="title">{{ book?.title || book?.file_name }}</span>
       <div class="actions">
-        <template v-if="book?.format === 'pdf'">
-          <el-button link @click="pdfReaderRef?.zoom(-0.3)"><el-icon><ZoomOut /></el-icon></el-button>
-          <el-button link @click="pdfReaderRef?.zoom(0.3)"><el-icon><ZoomIn /></el-icon></el-button>
-        </template>
         <el-button link @click="chapterDrawer = true"><el-icon><Menu /></el-icon> 目录</el-button>
         <el-button link @click="settingsOpen = true"><el-icon><Setting /></el-icon> 设置</el-button>
       </div>
@@ -97,10 +93,14 @@
       <el-empty v-else description="加载中..." />
     </div>
 
-    <!-- 底栏:进度信息(非 pdf,始终占位) -->
-    <div v-if="book && book?.format !== 'pdf'" class="footbar">
+    <!-- 底栏:进度信息(所有格式统一,始终占位);PDF 额外提供缩放按钮 -->
+    <div v-if="book" class="footbar">
       <el-button size="small" text :disabled="isFirstPage" @click="prevPageOrChapter">上一页</el-button>
       <span class="progress">{{ footbarText }}</span>
+      <template v-if="book?.format === 'pdf'">
+        <el-button size="small" text @click="pdfReaderRef?.zoom(-0.3)"><el-icon><ZoomOut /></el-icon></el-button>
+        <el-button size="small" text @click="pdfReaderRef?.zoom(0.3)"><el-icon><ZoomIn /></el-icon></el-button>
+      </template>
       <el-button size="small" text :disabled="isLastPage" @click="nextPageOrChapter">下一页</el-button>
     </div>
 
@@ -365,6 +365,7 @@ watch(curChapter, () => {
 })
 
 const isFirstPage = computed(() => {
+  if (book.value?.format === 'pdf') return curPage.value <= 0
   if (isComic.value) {
     if (comicIsDoublePage.value) return curChapter.value <= 0 && comicSubPage.value <= 0
     return curChapter.value <= 0
@@ -372,6 +373,7 @@ const isFirstPage = computed(() => {
   return curChapter.value <= 0 && htmlFirstPage.value
 })
 const isLastPage = computed(() => {
+  if (book.value?.format === 'pdf') return totalPages.value > 0 && curPage.value >= totalPages.value - 1
   if (isComic.value) {
     if (comicIsDoublePage.value) return curChapter.value >= chapters.value.length - 1 && comicSubPage.value >= 1
     return curChapter.value >= chapters.value.length - 1
@@ -379,6 +381,7 @@ const isLastPage = computed(() => {
   return curChapter.value >= chapters.value.length - 1 && htmlLastPage.value
 })
 const footbarText = computed(() => {
+  if (book.value?.format === 'pdf') return `${curPage.value + 1}/${totalPages.value}`
   if (isComic.value) {
     let pageInfo = `${curChapter.value + 1}/${chapters.value.length}`
     if (comicIsDoublePage.value) {
