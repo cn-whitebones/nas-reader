@@ -393,18 +393,18 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
   display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4);
   z-index: 99;
 }
-.sidebar { width: 260px; flex-shrink: 0; background: #fff; border-radius: 8px; padding: 12px; overflow-y: auto; }
+.sidebar { width: 260px; flex-shrink: 0; background: var(--el-bg-color-overlay); border-radius: 8px; padding: 12px; overflow-y: auto; }
 .sidebar-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 600; }
 .close-tree { display: none; }
 /* 全部图书入口:替代过去无法退出目录筛选的问题 */
 .all-books {
   display: flex; align-items: center; gap: 6px;
   padding: 6px 8px; margin-bottom: 6px;
-  cursor: pointer; border-radius: 4px; font-size: 14px; color: #303133;
+  cursor: pointer; border-radius: 4px; font-size: 14px; color: var(--el-text-color-primary);
   transition: background 0.15s;
 }
-.all-books:hover { background: #f5f7fa; }
-.all-books.active { background: #ecf5ff; color: #409eff; }
+.all-books:hover { background: var(--el-fill-color-light); }
+.all-books.active { background: var(--el-color-primary-light-9); color: var(--el-color-primary); }
 .all-books .cnt { margin-left: auto; }
 .cnt { color: #c0c4cc; font-size: 12px; }
 .content { flex: 1; min-width: 0; overflow-y: auto; padding-bottom: 40px; }

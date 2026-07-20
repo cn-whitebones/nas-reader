@@ -36,7 +36,7 @@ defineProps<{ books: BookBrief[] }>()
   display: flex;
   flex-direction: column;
   gap: 1px;
-  background: #e4e7ed;
+  background: var(--el-border-color-lighter);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -44,12 +44,12 @@ defineProps<{ books: BookBrief[] }>()
   display: flex;
   gap: 12px;
   padding: 12px;
-  background: #fff;
+  background: var(--el-bg-color-overlay);
   cursor: pointer;
   transition: background 0.2s;
 }
 .book-item:hover {
-  background: #f5f7fa;
+  background: var(--el-fill-color-light);
 }
 .cover-wrap {
   width: 50px;
@@ -57,7 +57,7 @@ defineProps<{ books: BookBrief[] }>()
   flex-shrink: 0;
   border-radius: 4px;
   overflow: hidden;
-  background: #e4e7ed;
+  background: var(--el-fill-color);
 }
 .cover-wrap img {
   width: 100%;
@@ -74,19 +74,20 @@ defineProps<{ books: BookBrief[] }>()
 .book-title {
   font-weight: 600;
   font-size: 14px;
+  color: var(--el-text-color-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .book-meta {
   font-size: 12px;
-  color: #606266;
+  color: var(--el-text-color-regular);
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
 }
 .book-meta.secondary {
-  color: #909399;
+  color: var(--el-text-color-secondary);
 }
 .book-meta .missing {
   color: #f56c6c;

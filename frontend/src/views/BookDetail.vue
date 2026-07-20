@@ -489,7 +489,7 @@ onMounted(async () => {
 .hero {
   display: flex;
   gap: 24px;
-  background: #fff;
+  background: var(--el-bg-color-overlay);
   padding: 24px;
   border-radius: 8px;
   /* stretch:让封面和信息列同高,视觉更整齐 */
@@ -524,8 +524,8 @@ onMounted(async () => {
   color: #1f2329;
   overflow-wrap: anywhere;
 }
-.subtitle { color: #909399; margin: 0 0 8px; font-size: 14px; }
-.author { color: #606266; margin: 0 0 12px; font-size: 14px; }
+.subtitle { color: var(--el-text-color-secondary); margin: 0 0 8px; font-size: 14px; }
+.author { color: var(--el-text-color-regular); margin: 0 0 12px; font-size: 14px; }
 .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
 
 /* 阅读进度:进度条 + 文字紧凑组合,始终占位避免抖动 */
@@ -534,11 +534,11 @@ onMounted(async () => {
 .placeholder-progress {
   flex: 1;
   height: 6px;
-  background: #f0f2f5;
+  background: var(--el-fill-color);
   border-radius: 3px;
 }
 .progress-text { color: #67c23a; font-size: 12px; white-space: nowrap; }
-.progress-text.text-muted { color: #909399; }
+.progress-text.text-muted { color: var(--el-text-color-secondary); }
 
 /* CTA 两行结构:主按钮独占,次按钮 grid 均分,避免 flex-wrap 后不对齐;
    info 用 flex 列布局,.actions 由 .info > .actions { margin-top:auto } 推到底 */
@@ -559,7 +559,7 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  background: #fff;
+  background: var(--el-bg-color-overlay);
   padding: 16px;
   border-radius: 8px;
   margin-top: 12px;
@@ -582,11 +582,11 @@ onMounted(async () => {
   overflow-wrap: anywhere;
   text-align: center;
 }
-.stat-label { font-size: 12px; color: #909399; margin-top: 4px; }
+.stat-label { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 4px; }
 
 /* ---------- 通用 section ---------- */
 .section {
-  background: #fff;
+  background: var(--el-bg-color-overlay);
   padding: 20px 24px;
   border-radius: 8px;
   margin-top: 12px;
@@ -595,7 +595,7 @@ onMounted(async () => {
   margin: 0 0 12px;
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 
 /* 键值对列表:PC 双列,移动端单列;label 灰色右对齐(单列时左对齐) */
@@ -606,13 +606,13 @@ onMounted(async () => {
   margin: 0;
   font-size: 14px;
 }
-.kv dt { color: #909399; }
-.kv dd { margin: 0; color: #303133; overflow-wrap: anywhere; }
+.kv dt { color: var(--el-text-color-secondary); }
+.kv dd { margin: 0; color: var(--el-text-color-primary); overflow-wrap: anywhere; }
 .kv .mono { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; }
 
 /* 简介:折叠状态最多 5 行,展开去限制 */
 .description {
-  color: #606266;
+  color: var(--el-text-color-regular);
   line-height: 1.8;
   white-space: pre-wrap;
   margin: 0;
@@ -635,8 +635,8 @@ onMounted(async () => {
 }
 
 /* 文件信息:轻量单元 */
-.file-info .file-name { font-size: 14px; color: #303133; overflow-wrap: anywhere; }
-.file-info .file-path { color: #909399; font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
+.file-info .file-name { font-size: 14px; color: var(--el-text-color-primary); overflow-wrap: anywhere; }
+.file-info .file-path { color: var(--el-text-color-secondary); font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
 
 /* 漫画设置 */
 .comic-settings {
@@ -651,17 +651,17 @@ onMounted(async () => {
 }
 .setting-label {
   font-size: 14px;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 .admin-hint {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   margin-left: 8px;
 }
 .comic-tip {
   margin-top: 12px;
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
 }
 
 /* ---------- 刮削对话框(基本沿用原样) ---------- */
@@ -670,7 +670,7 @@ onMounted(async () => {
 .provider-select { width: 160px; }
 .scrape-trace {
   background: #f8f9fb;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
   padding: 10px 12px;
   margin-bottom: 14px;
@@ -684,33 +684,33 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   font-weight: 600;
-  color: #606266;
+  color: var(--el-text-color-regular);
   margin-bottom: 6px;
   cursor: pointer;
   user-select: none;
 }
 .scrape-trace.collapsed .trace-head { margin-bottom: 0; }
-.trace-toggle { display: inline-block; width: 14px; color: #909399; }
+.trace-toggle { display: inline-block; width: 14px; color: var(--el-text-color-secondary); }
 .trace-running { font-weight: 400; color: #409eff; margin-left: 6px; }
-.trace-summary { font-weight: 400; color: #909399; }
+.trace-summary { font-weight: 400; color: var(--el-text-color-secondary); }
 .trace-step {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  color: #606266;
+  color: var(--el-text-color-regular);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 .trace-icon { width: 14px; text-align: center; flex-shrink: 0; }
 .trace-provider {
   flex-shrink: 0;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   background: #eef0f3;
   border-radius: 4px;
   padding: 0 5px;
   font-size: 12px;
 }
 .trace-msg { flex: 1; word-break: break-all; }
-.trace-time { flex-shrink: 0; color: #c0c4cc; font-size: 12px; }
+.trace-time { flex-shrink: 0; color: var(--el-text-color-placeholder); font-size: 12px; }
 .lv-success { color: #67c23a; }
 .lv-success .trace-icon { color: #67c23a; }
 .lv-warning { color: #e6a23c; }
@@ -719,10 +719,10 @@ onMounted(async () => {
 .lv-error .trace-icon { color: #f56c6c; }
 .candidates { max-height: 52vh; overflow-y: auto; }
 .candidate { display: flex; gap: 12px; padding: 12px; border-radius: 8px; cursor: pointer; }
-.candidate:hover { background: #f5f7fa; }
+.candidate:hover { background: var(--el-fill-color-light); }
 .cand-info { min-width: 0; flex: 1; }
 .cand-title { font-weight: 600; overflow-wrap: anywhere; }
-.cand-sub { font-size: 13px; color: #909399; margin: 4px 0; overflow-wrap: anywhere; }
+.cand-sub { font-size: 13px; color: var(--el-text-color-secondary); margin: 4px 0; overflow-wrap: anywhere; }
 .cand-desc { font-size: 12px; color: #b0b3b8; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* ---------- 移动端 ---------- */

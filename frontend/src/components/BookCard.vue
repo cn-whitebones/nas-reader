@@ -31,9 +31,9 @@ const wordsText = computed(() => formatWords(props.book.word_count) || '—')
 </script>
 
 <style scoped>
-.book-card { cursor: pointer; border-radius: 8px; overflow: hidden; background: #fff; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08); transition: transform 0.15s; display: flex; flex-direction: column; }
+.book-card { cursor: pointer; border-radius: 8px; overflow: hidden; background: var(--el-bg-color-overlay); box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08); transition: transform 0.15s; display: flex; flex-direction: column; }
 .book-card:hover { transform: translateY(-3px); }
-.cover { position: relative; aspect-ratio: 3 / 4; background: #eef1f6; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.cover { position: relative; aspect-ratio: 3 / 4; background: var(--el-fill-color-light); display: flex; align-items: center; justify-content: center; overflow: hidden; }
 /* 真实封面保持原比例、用背景色填充留白,和生成封面等高;比例不
    对的封面四周留空,居中显示,保证网格中所有卡片高度一致 */
 .cover img { max-width: 100%; max-height: 100%; object-fit: contain; }
@@ -42,7 +42,7 @@ const wordsText = computed(() => formatWords(props.book.word_count) || '—')
    保证网格所有卡片视觉一致(无 chip、无 wrap、无 min-height 兜底) */
 .meta { padding: 8px 10px 10px; }
 .line { line-height: 1.3; height: 1.3em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.title { font-size: 14px; font-weight: 500; color: #303133; }
-.author { font-size: 12px; color: #909399; margin-top: 4px; }
-.info { font-size: 12px; color: #909399; margin-top: 2px; }
+.title { font-size: 14px; font-weight: 500; color: var(--el-text-color-primary); }
+.author { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 4px; }
+.info { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 2px; }
 </style>

@@ -489,10 +489,10 @@ onBeforeUnmount(() => {
 .perm-row { padding: 6px 0; }
 .perm-row .path { color: #c0c4cc; font-size: 12px; margin-left: 6px; }
 .scrape-settings { max-width: 640px; }
-.ss-title { font-size: 16px; margin: 0 0 8px; color: #303133; }
-.ss-desc { color: #909399; font-size: 13px; line-height: 1.7; margin: 0 0 12px; }
-.ss-desc a { color: #409eff; }
-.ss-status { margin-bottom: 10px; font-size: 14px; color: #606266; }
+.ss-title { font-size: 16px; margin: 0 0 8px; color: var(--el-text-color-primary); }
+.ss-desc { color: var(--el-text-color-secondary); font-size: 13px; line-height: 1.7; margin: 0 0 12px; }
+.ss-desc a { color: var(--el-color-primary); }
+.ss-status { margin-bottom: 10px; font-size: 14px; color: var(--el-text-color-regular); }
 .ss-input { margin-bottom: 12px; }
 .ss-actions { display: flex; gap: 10px; }
 .provider-list { margin-bottom: 12px; }
@@ -501,31 +501,31 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
   margin-bottom: 8px;
-  background: #fff;
+  background: var(--el-bg-color-overlay);
 }
 .pr-order {
   width: 22px;
   height: 22px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: #f0f2f5;
-  color: #909399;
+  background: var(--el-fill-color);
+  color: var(--el-text-color-secondary);
   font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.pr-name { flex: 1; font-weight: 500; color: #303133; }
+.pr-name { flex: 1; font-weight: 500; color: var(--el-text-color-primary); }
 .pr-actions { display: flex; gap: 6px; }
 
 /* 扫描进度 */
 .scan-progress-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
 .scan-progress {
-  background: #fff;
-  border: 1px solid #ebeef5;
+  background: var(--el-bg-color-overlay);
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 10px;
   padding: 12px 14px;
 }
@@ -534,21 +534,21 @@ onBeforeUnmount(() => {
   gap: 10px; margin-bottom: 8px; font-size: 13px;
 }
 .scan-progress-head .scan-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.scan-progress-head .scan-stat { color: #909399; flex-shrink: 0; }
+.scan-progress-head .scan-stat { color: var(--el-text-color-secondary); flex-shrink: 0; }
 
 /* 移动端卡片列表 */
 .card-list { display: flex; flex-direction: column; gap: 12px; }
 .data-card {
-  background: #fff;
-  border: 1px solid #ebeef5;
+  background: var(--el-bg-color-overlay);
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 10px;
   padding: 14px;
 }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .card-title { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-line { display: flex; gap: 8px; font-size: 13px; margin: 4px 0; }
-.card-line .k { color: #909399; flex-shrink: 0; min-width: 56px; }
-.card-line .v { color: #606266; word-break: break-all; }
+.card-line .k { color: var(--el-text-color-secondary); flex-shrink: 0; min-width: 56px; }
+.card-line .v { color: var(--el-text-color-regular); word-break: break-all; }
 .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .card-actions .el-button { margin: 0; }
 </style>
