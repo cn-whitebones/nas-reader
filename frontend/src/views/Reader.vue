@@ -124,6 +124,7 @@ import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { ArrowLeft, Menu, Setting, Refresh } from '@element-plus/icons-vue'
 import { booksApi, type BookDetail, type Chapter } from '@/api/books'
 import { useReaderStore } from '@/stores/reader'
+import { applyTheme, setStatusBarColor, THEME_STATUS_COLOR, type AppTheme } from '@/theme'
 import HtmlReader from '@/reader/HtmlReader.vue'
 import PdfReader from '@/reader/PdfReader.vue'
 import SettingsPanel from '@/reader/SettingsPanel.vue'
@@ -134,6 +135,12 @@ const bookId = route.params.id as string
 
 const readerStore = useReaderStore()
 const settings = computed(() => readerStore.settings)
+
+// 阅读器内让状态栏/刘海跟随当前阅读主题(含护眼)沉浸;离开时由 onBeforeUnmount 恢复全局
+watch(
+  () => settings.value.theme,
+  (t) => setStatusBarColor(THEME_STATUS_COLOR[t as AppTheme] || THEME_STATUS_COLOR.light),
+)
 
 const book = ref<BookDetail | null>(null)
 const chapters = ref<Chapter[]>([])
@@ -369,6 +376,8 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
   await readerStore.load()
+  // 进入阅读器:状态栏跟随阅读主题(护眼也沉浸)
+  setStatusBarColor(THEME_STATUS_COLOR[settings.value.theme as AppTheme] || THEME_STATUS_COLOR.light)
   const [{ data: detail }, { data: chs }] = await Promise.all([
     booksApi.detail(bookId),
     booksApi.chapters(bookId),
@@ -401,6 +410,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onWindowResize)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('pagehide', commitProgress)
+  // 离开阅读器:恢复全局状态栏颜色(护眼在全局归明亮)
+  applyTheme(settings.value.theme)
   // 离开阅读页(关闭/刷新)时立即写入最新进度
   commitProgress()
 })
