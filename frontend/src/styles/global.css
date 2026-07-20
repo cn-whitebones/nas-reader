@@ -1,0 +1,48 @@
+/* 全局样式:移动/触屏端的原生 App 化手感控制。
+ *
+ * 目标:在触屏设备上屏蔽浏览器长按呼出的系统菜单(存图、选择、查找等)与
+ * 误触文字选中/图片拖拽,让 PWA 更接近原生 App;桌面端完全不受影响。
+ *
+ * 用 (hover: none) and (pointer: coarse) 命中手机/平板等纯触屏设备,
+ * 避免误伤带触摸屏的笔记本或桌面浏览器。
+ */
+@media (hover: none) and (pointer: coarse) {
+  :root {
+    /* 关闭长按呼出的系统菜单(iOS Safari) */
+    -webkit-touch-callout: none;
+    /* 关闭默认文字选中(下方再对输入框与白名单文本恢复) */
+    -webkit-user-select: none;
+    user-select: none;
+    /* 点击高亮去除,进一步接近原生手感 */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* 图片:禁止长按存图/拖拽 */
+  img {
+    -webkit-touch-callout: none;
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+
+  /* 输入类控件始终可选中/可长按(粘贴、光标定位等必需) */
+  input,
+  textarea,
+  [contenteditable="true"] {
+    -webkit-touch-callout: default;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /* 白名单:值得复制的文本恢复可选中。
+     .selectable 供任意组件按需标注;其余为书籍详情页的书名/副标题/作者/简介/出版信息值。 */
+  .selectable,
+  .book-title,
+  .subtitle,
+  .author,
+  .description,
+  .kv dd {
+    -webkit-touch-callout: default;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
