@@ -1,13 +1,6 @@
 <template>
-  <div class="pdf-reader" ref="container">
+  <div class="pdf-reader" :class="{ fit: scale === null }" ref="container">
     <canvas ref="canvas"></canvas>
-    <div class="pdf-nav">
-      <el-button size="small" :disabled="pageNum <= 1" @click="go(pageNum - 1)">上一页</el-button>
-      <span>{{ pageNum }} / {{ totalPages }}</span>
-      <el-button size="small" :disabled="pageNum >= totalPages" @click="go(pageNum + 1)">下一页</el-button>
-      <el-button size="small" @click="zoom(0.2)">放大</el-button>
-      <el-button size="small" @click="zoom(-0.2)">缩小</el-button>
-    </div>
   </div>
 </template>
 
@@ -20,7 +13,11 @@ import PdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 pdfjsLib.GlobalWorkerOptions.workerSrc = PdfWorker
 
 const props = defineProps<{ fileUrl: string; initialPage?: number }>()
-const emit = defineEmits<{ pageChange: [page: number, total: number] }>()
+const emit = defineEmits<{
+  pageChange: [page: number, total: number]
+  // fit=true 表示当前为整页适配态(可点击翻页);false 表示已放大(自由滚动查看)
+  zoomChange: [fit: boolean]
+}>()
 
 const container = ref<HTMLElement>()
 const canvas = ref<HTMLCanvasElement>()
@@ -62,33 +59,55 @@ async function render() {
   canvas.value.height = viewport.height
   await page.render({ canvasContext: ctx, viewport }).promise
   emit('pageChange', pageNum.value, totalPages.value)
+  emit('zoomChange', scale.value === null)
 }
 
 function go(n: number) {
   if (n < 1 || n > totalPages.value) return
   pageNum.value = n
+  // 翻页时回到整页适配态,避免停留在上一页的放大区域
+  scale.value = null
+  if (container.value) container.value.scrollTop = 0
   render()
 }
 function next() { go(pageNum.value + 1) }
 function prev() { go(pageNum.value - 1) }
+
+// delta>0 放大,delta<0 缩小;delta=0 复位到整页适配
 async function zoom(delta: number) {
+  if (delta === 0) {
+    scale.value = null
+    render()
+    return
+  }
   // 从自动适配切到手动模式时,先取当前适配比作为基准
   if (scale.value == null && pdfDoc) {
     const page = await pdfDoc.getPage(pageNum.value)
     scale.value = fitScale(page)
   }
-  scale.value = Math.min(Math.max((scale.value ?? 1.2) + delta, 0.5), 3)
+  const next = Math.min(Math.max((scale.value ?? 1.2) + delta, 0.5), 4)
+  // 缩小回到适配比附近时自动回落到 fit 态,便于恢复点击翻页
+  if (pdfDoc) {
+    const page = await pdfDoc.getPage(pageNum.value)
+    if (next <= fitScale(page) + 0.01) {
+      scale.value = null
+      render()
+      return
+    }
+  }
+  scale.value = next
   render()
 }
 
 watch(() => props.initialPage, (p) => { if (p) { pageNum.value = p; render() } })
 onMounted(load)
-defineExpose({ go, next, prev })
+defineExpose({ go, next, prev, zoom })
 </script>
 
 <style scoped>
-.pdf-reader { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 12px; background: #525659; box-sizing: border-box; overflow: hidden; }
-canvas { max-width: 100%; max-height: 100%; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4); }
-/* 缩放/翻页条:固定在底部并置于点击翻页层(z-index:10)之上,保证可点击 */
-.pdf-nav { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 30; display: flex; gap: 8px; align-items: center; padding: 10px; background: rgba(0,0,0,0.6); color: #fff; border-radius: 8px; }
+.pdf-reader { height: 100%; background: #525659; box-sizing: border-box; overflow: auto; -webkit-overflow-scrolling: touch; }
+/* 整页适配态:居中显示,不滚动 */
+.pdf-reader.fit { display: flex; align-items: center; justify-content: center; padding: 12px; overflow: hidden; }
+canvas { display: block; margin: auto; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4); }
+.pdf-reader.fit canvas { max-width: 100%; max-height: 100%; }
 </style>

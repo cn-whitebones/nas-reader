@@ -5,6 +5,10 @@
       <el-button link @click="router.back()"><el-icon><ArrowLeft /></el-icon> 返回</el-button>
       <span class="title">{{ book?.title || book?.file_name }}</span>
       <div class="actions">
+        <template v-if="book?.format === 'pdf'">
+          <el-button link @click="pdfReaderRef?.zoom(-0.3)"><el-icon><ZoomOut /></el-icon></el-button>
+          <el-button link @click="pdfReaderRef?.zoom(0.3)"><el-icon><ZoomIn /></el-icon></el-button>
+        </template>
         <el-button link @click="chapterDrawer = true"><el-icon><Menu /></el-icon> 目录</el-button>
         <el-button link @click="settingsOpen = true"><el-icon><Setting /></el-icon> 设置</el-button>
       </div>
@@ -31,9 +35,11 @@
             :file-url="fileUrl"
             :initial-page="Number(initialLocation) || 1"
             @page-change="onPdfPage"
+            @zoom-change="onPdfZoomChange"
           />
-          <!-- 点击翻页区域:左/右翻页,中间切换工具栏(与文本/漫画一致) -->
-          <div class="tap-zones" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd" @click="onTapZoneClick">
+          <!-- 点击翻页区域:左/右翻页,中间切换工具栏(与文本/漫画一致)
+               放大态(非 fit)下隐藏,让用户可自由拖动查看放大后的页面 -->
+          <div v-if="pdfFit" class="tap-zones" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd" @click="onTapZoneClick">
             <div class="tap-zone left" data-zone="left"></div>
             <div class="tap-zone center" data-zone="center"></div>
             <div class="tap-zone right" data-zone="right"></div>
@@ -129,7 +135,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
-import { ArrowLeft, Menu, Setting, Refresh } from '@element-plus/icons-vue'
+import { ArrowLeft, Menu, Setting, Refresh, ZoomIn, ZoomOut } from '@element-plus/icons-vue'
 import { booksApi, type BookDetail, type Chapter } from '@/api/books'
 import { useReaderStore } from '@/stores/reader'
 import { applyTheme, setStatusBarColor, THEME_STATUS_COLOR, type AppTheme } from '@/theme'
@@ -173,6 +179,8 @@ const htmlLastPage = ref(false)
 
 const htmlReaderRef = ref<InstanceType<typeof HtmlReader>>()
 const pdfReaderRef = ref<InstanceType<typeof PdfReader>>()
+// PDF 是否处于整页适配态(true 时才启用点击翻页;放大后为 false)
+const pdfFit = ref(true)
 
 const fileUrl = computed(() => booksApi.fileUrl(bookId))
 const drawerSize = computed(() => (window.innerWidth < 600 ? '80%' : 320))
@@ -586,6 +594,13 @@ function onPdfPage(page: number, total: number) {
   curPage.value = page - 1  // 1-based → 0-based
   totalPages.value = total
   saveProgress(String(page), total > 0 ? (page / total) * 100 : 0)
+}
+
+// PDF 缩放态变化:放大态隐藏点击翻页层,并强制显示顶栏,
+// 保证缩放按钮始终可点(否则放大后无法缩回)
+function onPdfZoomChange(fit: boolean) {
+  pdfFit.value = fit
+  if (!fit) showChrome.value = true
 }
 
 // —— 进度保存 ——
