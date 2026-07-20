@@ -1,6 +1,30 @@
-/* 全局样式:移动/触屏端的原生 App 化手感控制。
- *
- * 目标:在触屏设备上屏蔽浏览器长按呼出的系统菜单(存图、选择、查找等)与
+/* ============ 全局主题变量与 App 外壳换肤 ============
+ * 主题由 <html data-app-theme="light|sepia|dark"> 驱动(见 src/theme.ts)。
+ * dark 额外加 .dark 类接入 Element Plus 内置暗色。外壳(html/body、顶栏、tabbar、
+ * 内容区)统一用下列变量取色,实现整屏一致换肤与状态栏沉浸。
+ */
+:root {
+  --app-bg: #f5f7fa;       /* 内容区背景 */
+  --app-surface: #ffffff;  /* 顶栏/卡片/tabbar 表面 */
+  --app-text: #303133;     /* 主文字 */
+  --app-border: #ebeef5;   /* 分隔线 */
+}
+/* 全局外壳只有明亮/暗黑两态(护眼仅阅读器正文,见 theme.ts) */
+html[data-app-theme='dark'] {
+  --app-bg: #141414;
+  --app-surface: #1a1a1a;
+  --app-text: #c8c8c8;
+  --app-border: #2a2a2a;
+}
+
+/* html/body 背景跟随主题,兜住上下安全区(刘海/home 条)实现沉浸 */
+html,
+body {
+  background: var(--app-bg);
+}
+
+/* ============ 触屏端原生 App 化手感控制 ============ */
+/* 目标:在触屏设备上屏蔽浏览器长按呼出的系统菜单(存图、选择、查找等)与
  * 误触文字选中/图片拖拽,让 PWA 更接近原生 App;桌面端完全不受影响。
  *
  * 用 (hover: none) and (pointer: coarse) 命中手机/平板等纯触屏设备,

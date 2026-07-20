@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { readingSettingsApi } from '@/api/admin'
+import { applyTheme } from '@/theme'
 
 export interface ReaderSettings {
   font_family: string
@@ -32,9 +33,12 @@ export const useReaderStore = defineStore('reader', {
         this.settings = { ...DEFAULTS }
       }
       this.loaded = true
+      applyTheme(this.settings.theme)
     },
     update(patch: Partial<ReaderSettings>) {
       this.settings = { ...this.settings, ...patch }
+      // 主题变更即时应用到全局(状态栏/外壳),不等防抖
+      if (patch.theme) applyTheme(patch.theme)
       // 防抖持久化
       if (saveTimer) clearTimeout(saveTimer)
       saveTimer = setTimeout(() => {

@@ -34,14 +34,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { Reading, Collection, Setting, User } from '@element-plus/icons-vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useReaderStore } from '@/stores/reader'
 
 const auth = useAuthStore()
 const route = useRoute()
+const readerStore = useReaderStore()
 const isReader = computed(() => route.name === 'reader')
+
+// 进入 App 外壳即加载并应用全局主题(不再等进阅读器),避免换肤闪白
+onMounted(() => {
+  if (!readerStore.loaded) readerStore.load()
+})
 
 // 顶部菜单高亮:详情/阅读页归属书库
 const activeMenu = computed(() => {
@@ -72,21 +79,22 @@ function isActiveTab(path: string) {
   display: flex;
   align-items: center;
   gap: 16px;
-  border-bottom: 1px solid #eee;
-  background: #fff;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
   overflow: hidden;
-  /* 全屏 PWA:顶部避让状态栏/刘海 */
+  /* 全屏 PWA:顶部避让状态栏/刘海;背景延伸进安全区实现刘海区沉浸 */
   padding-top: env(safe-area-inset-top);
   height: calc(56px + env(safe-area-inset-top));
   box-sizing: border-box;
 }
 .logo { font-weight: 600; white-space: nowrap; }
 /* el-menu 横向默认 60px 高,强制与 header 内容区同高并去掉自带边框,避免撑出/错位 */
-.nav { flex: 1; min-width: 0; height: 56px; border-bottom: none; }
+.nav { flex: 1; min-width: 0; height: 56px; border-bottom: none; background: transparent; }
 .nav :deep(.el-menu-item) { height: 56px; line-height: 56px; }
-.user { display: flex; align-items: center; gap: 4px; white-space: nowrap; color: #606266; }
+.user { display: flex; align-items: center; gap: 4px; white-space: nowrap; color: var(--app-text); opacity: 0.75; }
 .spacer { flex: 1; }
-.main { background: #f5f7fa; }
+.main { background: var(--app-bg); color: var(--app-text); }
 /* 阅读器模式:去掉 el-main 默认内边距与滚动,交给阅读器内部自行滚动 */
 .reader-mode { padding: 0; overflow: hidden; }
 
@@ -114,8 +122,8 @@ function isActiveTab(path: string) {
     right: 0;
     bottom: 0;
     z-index: 1000;
-    background: #fff;
-    border-top: 1px solid #ebeef5;
+    background: var(--app-surface);
+    border-top: 1px solid var(--app-border);
     box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
     /* 底部避让 home 横条,但只留约 60% 安全区,让图标更贴近底部;
        左右加内边距,使首末图标避开屏幕底部圆角 */

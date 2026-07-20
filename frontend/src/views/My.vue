@@ -35,7 +35,23 @@
       </div>
     </section>
 
-    <!-- 预留:后续个性化设置(阅读偏好、界面等)可在此追加卡片 -->
+    <!-- 外观 -->
+    <section class="card">
+      <div class="card-head">外观</div>
+      <div class="action-row">
+        <div class="action-text">
+          <div class="action-title">主题</div>
+          <div class="action-desc">应用于整个界面;护眼色仅在阅读器正文生效</div>
+        </div>
+        <el-radio-group :model-value="reader.settings.theme" @update:model-value="onTheme">
+          <el-radio-button value="light">明亮</el-radio-button>
+          <el-radio-button value="sepia">护眼</el-radio-button>
+          <el-radio-button value="dark">暗黑</el-radio-button>
+        </el-radio-group>
+      </div>
+    </section>
+
+    <!-- 预留:后续个性化设置可在此追加卡片 -->
 
     <div class="logout-wrap">
       <el-button type="danger" plain @click="onLogout">退出登录</el-button>
@@ -67,10 +83,19 @@ import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { useReaderStore, type ReaderSettings } from '@/stores/reader'
 import { authApi } from '@/api/auth'
 
 const auth = useAuthStore()
+const reader = useReaderStore()
 const router = useRouter()
+
+// 主题加载兜底:直接进入「我的」页(未经阅读器)时确保设置已就绪
+if (!reader.loaded) reader.load()
+
+function onTheme(v: ReaderSettings['theme']) {
+  reader.update({ theme: v })
+}
 
 const dialogWidth = computed(() => (window.innerWidth < 768 ? '94vw' : '460px'))
 
@@ -136,10 +161,10 @@ async function submitPassword() {
 
 <style scoped>
 .my-page { max-width: 640px; margin: 0 auto; }
-.page-title { font-size: 20px; margin: 0 0 16px; color: #303133; }
+.page-title { font-size: 20px; margin: 0 0 16px; color: var(--app-text); }
 .card {
-  background: #fff;
-  border: 1px solid #ebeef5;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
   border-radius: 10px;
   padding: 16px 18px;
   margin-bottom: 16px;
@@ -147,7 +172,7 @@ async function submitPassword() {
 .card-head {
   font-size: 15px;
   font-weight: 600;
-  color: #303133;
+  color: var(--app-text);
   margin-bottom: 12px;
 }
 .info-row {
@@ -156,17 +181,19 @@ async function submitPassword() {
   align-items: center;
   padding: 8px 0;
   font-size: 14px;
-  border-top: 1px solid #f5f7fa;
+  border-top: 1px solid var(--app-border);
 }
 .info-row:first-of-type { border-top: none; }
 .info-row .k { color: #909399; }
-.info-row .v { color: #303133; }
+.info-row .v { color: var(--app-text); }
 .action-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
-.action-title { font-size: 14px; color: #303133; }
+.action-title { font-size: 14px; color: var(--app-text); }
 .action-desc { font-size: 12px; color: #909399; margin-top: 2px; }
 .logout-wrap { text-align: center; margin-top: 24px; }
 </style>
