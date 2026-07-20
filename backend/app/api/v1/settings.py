@@ -1,4 +1,4 @@
-"""系统设置路由:默认文件夹权限模板、刮削配置(仅管理员)。"""
+"""系统设置路由:默认文件夹权限模板、刮削配置、刮削源管理(仅管理员)。"""
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import delete, select
@@ -8,7 +8,14 @@ from app.core.deps import get_current_admin
 from app.db.session import get_db
 from app.models.user import Permission
 from app.schemas.auth import PermissionItem, PermissionUpdate
-from app.services.settings_store import KEY_DOUBAN_COOKIE, get_setting, set_setting
+from app.services.settings_store import (
+    KEY_DOUBAN_COOKIE,
+    PROVIDER_LABELS,
+    get_provider_config,
+    get_setting,
+    set_provider_config,
+    set_setting,
+)
 
 router = APIRouter(prefix="/settings", tags=["settings"], dependencies=[Depends(get_current_admin)])
 
@@ -24,6 +31,28 @@ class ScrapeSettingsUpdate(BaseModel):
     douban_cookie: str
 
 
+class ProviderItem(BaseModel):
+    provider: str
+    enabled: bool
+    label: str | None = None
+
+
+class ProviderConfigUpdate(BaseModel):
+    providers: list[ProviderItem]
+
+
+def _with_labels(config: list[dict]) -> list[ProviderItem]:
+    label_by_value = {k.value: v for k, v in PROVIDER_LABELS.items()}
+    return [
+        ProviderItem(
+            provider=item["provider"],
+            enabled=item["enabled"],
+            label=label_by_value.get(item["provider"], item["provider"]),
+        )
+        for item in config
+    ]
+
+
 @router.get("/scrape", response_model=ScrapeSettingsOut)
 async def get_scrape_settings(db: AsyncSession = Depends(get_db)):
     cookie = await get_setting(db, KEY_DOUBAN_COOKIE, "")
@@ -36,6 +65,19 @@ async def update_scrape_settings(payload: ScrapeSettingsUpdate, db: AsyncSession
     await set_setting(db, KEY_DOUBAN_COOKIE, payload.douban_cookie.strip())
     cookie = await get_setting(db, KEY_DOUBAN_COOKIE, "")
     return ScrapeSettingsOut(douban_cookie_set=bool(cookie), douban_cookie_length=len(cookie))
+
+
+@router.get("/scrape/providers", response_model=list[ProviderItem])
+async def get_scrape_providers(db: AsyncSession = Depends(get_db)):
+    """刮削源顺序与启用状态(顺序即自动模式的降级顺序)。"""
+    return _with_labels(await get_provider_config(db))
+
+
+@router.put("/scrape/providers", response_model=list[ProviderItem])
+async def set_scrape_providers(payload: ProviderConfigUpdate, db: AsyncSession = Depends(get_db)):
+    config = [{"provider": p.provider, "enabled": p.enabled} for p in payload.providers]
+    saved = await set_provider_config(db, config)
+    return _with_labels(saved)
 
 
 @router.get("/default-permissions", response_model=list[PermissionItem])

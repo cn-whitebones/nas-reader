@@ -1,5 +1,6 @@
 import http from './http'
 import type { Metadata } from './books'
+import { useAuthStore } from '@/stores/auth'
 
 export interface Source {
   id: string
@@ -94,6 +95,12 @@ export interface ScrapeSettings {
   douban_cookie_length: number
 }
 
+export interface ProviderItem {
+  provider: string
+  enabled: boolean
+  label?: string | null
+}
+
 export const scrapeApi = {
   search: (keyword: string, provider?: string) =>
     http.get<ScrapeResult>('/scrape/search', { params: { keyword, provider } }),
@@ -106,6 +113,78 @@ export const scrapeApi = {
   getSettings: () => http.get<ScrapeSettings>('/settings/scrape'),
   updateSettings: (douban_cookie: string) =>
     http.put<ScrapeSettings>('/settings/scrape', { douban_cookie }),
+  getProviders: () => http.get<ProviderItem[]>('/settings/scrape/providers'),
+  updateProviders: (providers: ProviderItem[]) =>
+    http.put<ProviderItem[]>('/settings/scrape/providers', { providers }),
+}
+
+/**
+ * 流式刮削(SSE)。用 fetch 读取 text/event-stream(EventSource 无法带 JWT header)。
+ * onStep 每步实时回调,onDone 收到候选结果,onError 出错回调。返回一个取消函数。
+ */
+export function scrapeStream(
+  keyword: string,
+  provider: string | undefined,
+  handlers: {
+    onStep: (step: ScrapeStep) => void
+    onDone: (candidates: Candidate[]) => void
+    onError: (message: string) => void
+  },
+): () => void {
+  const auth = useAuthStore()
+  const controller = new AbortController()
+  const params = new URLSearchParams({ keyword })
+  if (provider) params.set('provider', provider)
+
+  ;(async () => {
+    try {
+      const resp = await fetch(`/api/v1/scrape/stream?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${auth.accessToken}` },
+        signal: controller.signal,
+      })
+      if (!resp.ok || !resp.body) {
+        handlers.onError(`刮削请求失败(${resp.status})`)
+        return
+      }
+      const reader = resp.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        // 按 SSE 事件分隔(空行)切分
+        const events = buffer.split('\n\n')
+        buffer = events.pop() || ''
+        for (const raw of events) {
+          const ev = parseSseEvent(raw)
+          if (!ev) continue
+          if (ev.event === 'step') handlers.onStep(ev.data as ScrapeStep)
+          else if (ev.event === 'done') handlers.onDone((ev.data.candidates || []) as Candidate[])
+          else if (ev.event === 'error') handlers.onError(ev.data.message || '刮削出错')
+        }
+      }
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') handlers.onError(e?.message || '刮削连接中断')
+    }
+  })()
+
+  return () => controller.abort()
+}
+
+function parseSseEvent(raw: string): { event: string; data: any } | null {
+  let event = 'message'
+  const dataLines: string[] = []
+  for (const line of raw.split('\n')) {
+    if (line.startsWith('event:')) event = line.slice(6).trim()
+    else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim())
+  }
+  if (!dataLines.length) return null
+  try {
+    return { event, data: JSON.parse(dataLines.join('\n')) }
+  } catch {
+    return null
+  }
 }
 
 export const readingSettingsApi = {

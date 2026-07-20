@@ -24,15 +24,27 @@ class ScrapeStep:
 
 
 class ScrapeTracer:
-    """收集刮削过程步骤。Provider 与编排层往里写,API 层读出返回给前端。"""
+    """收集刮削过程步骤。Provider 与编排层往里写,API 层读出返回给前端。
+
+    可选绑定一个 asyncio.Queue(通过 set_queue):每记一步就把该步 put 进队列,
+    供 SSE 流式端点实时推送给前端。不绑定队列时行为与原来一致(仅累积到 steps)。
+    """
 
     def __init__(self) -> None:
         self.steps: list[ScrapeStep] = []
+        self._queue = None  # type: asyncio.Queue | None
+
+    def set_queue(self, queue) -> None:
+        self._queue = queue
 
     def add(
         self, provider: str, level: str, message: str, elapsed_ms: int | None = None
     ) -> None:
-        self.steps.append(ScrapeStep(provider=provider, level=level, message=message, elapsed_ms=elapsed_ms))
+        step = ScrapeStep(provider=provider, level=level, message=message, elapsed_ms=elapsed_ms)
+        self.steps.append(step)
+        if self._queue is not None:
+            # put_nowait:队列无界,不阻塞记录方;SSE 端点异步消费
+            self._queue.put_nowait(step)
 
     def info(self, provider: str, message: str, elapsed_ms: int | None = None) -> None:
         self.add(provider, "info", message, elapsed_ms)

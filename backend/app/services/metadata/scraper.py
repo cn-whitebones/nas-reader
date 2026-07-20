@@ -44,11 +44,13 @@ async def search_candidates(
     limit: int = 5,
     tracer: ScrapeTracer | None = None,
     douban_cookie: str | None = None,
+    order: list[MetadataProviderName] | None = None,
 ) -> list[MetadataCandidate]:
     """搜索候选。指定 provider 则只用该源;否则按降级链依次尝试,首个有结果即返回。
 
     过程写入 tracer(若提供),供前端可视化展示。
     douban_cookie 若提供,则用它构造豆瓣 Provider(覆盖环境变量默认值)。
+    order 若提供,则作为自动模式的降级顺序(仅含已启用的源);否则用内置默认顺序。
     """
     tracer = tracer or ScrapeTracer()
     providers = dict(_PROVIDERS)
@@ -66,8 +68,13 @@ async def search_candidates(
             tracer.warning("", "该来源未返回任何候选")
         return result
 
-    tracer.info("", f"自动模式:按「豆瓣 → Google → Open Library」顺序降级尝试")
-    for name in _FALLBACK_ORDER:
+    fallback = order if order is not None else _FALLBACK_ORDER
+    if not fallback:
+        tracer.warning("", "没有已启用的刮削源,请在刮削设置中启用至少一个来源")
+        return []
+    chain = " → ".join(_PROVIDER_LABEL.get(n, n.value) for n in fallback)
+    tracer.info("", f"自动模式:按「{chain}」顺序降级尝试")
+    for name in fallback:
         candidates = await providers[name].search(keyword, limit, tracer)
         if candidates:
             tracer.success("", f"命中来源:{_PROVIDER_LABEL.get(name, name.value)},停止降级")

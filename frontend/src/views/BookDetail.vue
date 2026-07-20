@@ -147,7 +147,7 @@
     </div>
 
     <!-- 刮削对话框 -->
-    <el-dialog v-model="scrapeDialog" title="元数据管理" :width="dialogWidth" top="6vh">
+    <el-dialog v-model="scrapeDialog" title="元数据管理" :width="dialogWidth" top="6vh" @close="onScrapeDialogClose">
       <el-tabs v-model="editTab">
         <el-tab-pane label="刮削搜索" name="scrape">
           <div class="scrape-head">
@@ -160,19 +160,26 @@
             <el-button type="primary" :loading="scraping" @click="runScrape">搜索</el-button>
           </div>
 
-          <!-- 刮削过程日志:让用户直观看到每一步发生了什么 -->
-          <div v-if="scrapeSteps.length" class="scrape-trace">
-            <div class="trace-head">
-              <span>刮削过程</span>
-              <span v-if="scrapeSearched" class="trace-summary">
-                共 {{ candidates.length }} 个候选
+          <!-- 刮削过程日志:实时展示每一步;命中候选后自动折叠,可点击展开 -->
+          <div v-if="scrapeSteps.length" class="scrape-trace" :class="{ collapsed: traceCollapsed }">
+            <div class="trace-head" @click="traceCollapsed = !traceCollapsed">
+              <span>
+                <span class="trace-toggle">{{ traceCollapsed ? '▸' : '▾' }}</span>
+                刮削过程
+                <span v-if="scraping" class="trace-running">进行中…</span>
+              </span>
+              <span class="trace-summary">
+                <template v-if="scrapeSearched">共 {{ candidates.length }} 个候选</template>
+                <template v-else>{{ scrapeSteps.length }} 步</template>
               </span>
             </div>
-            <div v-for="(s, i) in scrapeSteps" :key="i" class="trace-step" :class="`lv-${s.level}`">
-              <span class="trace-icon">{{ stepIcon(s.level) }}</span>
-              <span v-if="s.provider" class="trace-provider">{{ providerLabel(s.provider) }}</span>
-              <span class="trace-msg">{{ s.message }}</span>
-              <span v-if="s.elapsed_ms != null" class="trace-time">{{ s.elapsed_ms }}ms</span>
+            <div v-show="!traceCollapsed" class="trace-body">
+              <div v-for="(s, i) in scrapeSteps" :key="i" class="trace-step" :class="`lv-${s.level}`">
+                <span class="trace-icon">{{ stepIcon(s.level) }}</span>
+                <span v-if="s.provider" class="trace-provider">{{ providerLabel(s.provider) }}</span>
+                <span class="trace-msg">{{ s.message }}</span>
+                <span v-if="s.elapsed_ms != null" class="trace-time">{{ s.elapsed_ms }}ms</span>
+              </div>
             </div>
           </div>
 
@@ -215,7 +222,7 @@ import { ElMessage } from 'element-plus'
 import { Reading } from '@element-plus/icons-vue'
 import { booksApi, type BookDetail } from '@/api/books'
 import { shelvesApi } from '@/api/shelves'
-import { scrapeApi, type Candidate, type ScrapeStep } from '@/api/admin'
+import { scrapeApi, scrapeStream, type Candidate, type ScrapeStep } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
 import CoverImage from '@/components/CoverImage.vue'
 import GeneratedCover from '@/components/GeneratedCover.vue'
@@ -293,6 +300,9 @@ const candidates = ref<Candidate[]>([])
 const scraping = ref(false)
 const applying = ref(false)
 const scrapeSteps = ref<ScrapeStep[]>([])
+const traceCollapsed = ref(false)
+// 流式刮削的取消函数(切换关键词/关闭弹窗时中断)
+let cancelStream: (() => void) | null = null
 // 弹窗宽度:移动端近乎占满屏幕,桌面固定 640px
 const dialogWidth = computed(() => (window.innerWidth < 600 ? '94vw' : '640px'))
 const scrapeSearched = ref(false)
@@ -316,6 +326,7 @@ function openScrapeDialog() {
   scrapeSteps.value = []
   candidates.value = []
   scrapeSearched.value = false
+  traceCollapsed.value = false
   if (md.value) {
     manualForm.title = md.value.title || ''
     manualForm.subtitle = md.value.subtitle || ''
@@ -395,21 +406,44 @@ const emptyHint = computed(() => {
   return '无匹配结果,可换关键词或来源重试'
 })
 
-async function runScrape() {
+function onScrapeDialogClose() {
+  // 关闭弹窗时中断未结束的流式刮削
+  if (cancelStream) {
+    cancelStream()
+    cancelStream = null
+  }
+  scraping.value = false
+}
+
+function runScrape() {
+  // 取消上一次未结束的流
+  if (cancelStream) cancelStream()
   scraping.value = true
   scrapeSteps.value = []
   candidates.value = []
-  try {
-    const { data } = await scrapeApi.scrapeBook(bookId, scrapeKeyword.value, scrapeProvider.value)
-    candidates.value = data.candidates
-    scrapeSteps.value = data.steps
-    scrapeSearched.value = true
-  } catch (e: any) {
-    scrapeSteps.value = [{ provider: '', level: 'error', message: e.response?.data?.detail || '刮削请求失败' }]
-    ElMessage.error(e.response?.data?.detail || '刮削失败')
-  } finally {
-    scraping.value = false
-  }
+  scrapeSearched.value = false
+  traceCollapsed.value = false
+
+  cancelStream = scrapeStream(scrapeKeyword.value, scrapeProvider.value, {
+    onStep: (step) => {
+      scrapeSteps.value.push(step)
+    },
+    onDone: (cands) => {
+      candidates.value = cands
+      scrapeSearched.value = true
+      scraping.value = false
+      cancelStream = null
+      // 命中候选后自动折叠过程区,只突出结果;无结果则保留过程便于排查
+      traceCollapsed.value = cands.length > 0
+    },
+    onError: (msg) => {
+      scrapeSteps.value.push({ provider: '', level: 'error', message: msg })
+      scrapeSearched.value = true
+      scraping.value = false
+      cancelStream = null
+      ElMessage.error(msg)
+    },
+  })
 }
 
 async function applyCandidate(c: Candidate) {
@@ -645,13 +679,19 @@ onMounted(async () => {
   font-size: 13px;
   line-height: 1.7;
 }
+.scrape-trace.collapsed { max-height: none; padding: 8px 12px; }
 .trace-head {
   display: flex;
   justify-content: space-between;
   font-weight: 600;
   color: #606266;
   margin-bottom: 6px;
+  cursor: pointer;
+  user-select: none;
 }
+.scrape-trace.collapsed .trace-head { margin-bottom: 0; }
+.trace-toggle { display: inline-block; width: 14px; color: #909399; }
+.trace-running { font-weight: 400; color: #409eff; margin-left: 6px; }
 .trace-summary { font-weight: 400; color: #909399; }
 .trace-step {
   display: flex;

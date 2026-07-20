@@ -129,6 +129,30 @@
               清除
             </el-button>
           </div>
+
+          <el-divider />
+
+          <h3 class="ss-title">刮削源</h3>
+          <p class="ss-desc">
+            控制「自动」模式下的来源顺序与启用状态。刮削时按从上到下的顺序依次尝试,命中即停止。
+            关闭某个源后,自动模式将跳过它。
+          </p>
+          <div class="provider-list">
+            <div v-for="(p, idx) in providers" :key="p.provider" class="provider-row">
+              <span class="pr-order">{{ idx + 1 }}</span>
+              <span class="pr-name">{{ p.label || p.provider }}</span>
+              <el-switch v-model="p.enabled" />
+              <div class="pr-actions">
+                <el-button size="small" :disabled="idx === 0" @click="moveProvider(idx, -1)">上移</el-button>
+                <el-button size="small" :disabled="idx === providers.length - 1" @click="moveProvider(idx, 1)">
+                  下移
+                </el-button>
+              </div>
+            </div>
+          </div>
+          <div class="ss-actions">
+            <el-button type="primary" :loading="savingProviders" @click="saveProviders">保存刮削源</el-button>
+          </div>
         </div>
       </el-tab-pane>
     </el-tabs>
@@ -193,7 +217,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { sourcesApi, usersApi, scrapeApi, type ScanTask, type ScrapeSettings, type Source, type User } from '@/api/admin'
+import { sourcesApi, usersApi, scrapeApi, type ProviderItem, type ScanTask, type ScrapeSettings, type Source, type User } from '@/api/admin'
 
 const tab = ref('sources')
 const sources = ref<Source[]>([])
@@ -234,6 +258,9 @@ const userForm = reactive({ username: '', password: '', role: 'user' as 'user' |
 const scrapeSettings = reactive<ScrapeSettings>({ douban_cookie_set: false, douban_cookie_length: 0 })
 const doubanCookieInput = ref('')
 const savingScrape = ref(false)
+// 刮削源顺序与启用状态
+const providers = ref<ProviderItem[]>([])
+const savingProviders = ref(false)
 
 // 权限
 const permDialog = ref(false)
@@ -419,9 +446,34 @@ async function clearDoubanCookie() {
   await saveScrapeSettings()
 }
 
+async function loadProviders() {
+  const { data } = await scrapeApi.getProviders()
+  providers.value = data
+}
+
+function moveProvider(idx: number, delta: number) {
+  const to = idx + delta
+  if (to < 0 || to >= providers.value.length) return
+  const arr = providers.value
+  ;[arr[idx], arr[to]] = [arr[to], arr[idx]]
+}
+
+async function saveProviders() {
+  savingProviders.value = true
+  try {
+    const { data } = await scrapeApi.updateProviders(providers.value)
+    providers.value = data
+    ElMessage.success('刮削源已保存')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '保存失败')
+  } finally {
+    savingProviders.value = false
+  }
+}
+
 onMounted(async () => {
   window.addEventListener('resize', onResize)
-  await Promise.all([loadSources(), loadUsers(), loadScrapeSettings()])
+  await Promise.all([loadSources(), loadUsers(), loadScrapeSettings(), loadProviders()])
   await restoreRunningScans()
 })
 onBeforeUnmount(() => {
@@ -443,6 +495,31 @@ onBeforeUnmount(() => {
 .ss-status { margin-bottom: 10px; font-size: 14px; color: #606266; }
 .ss-input { margin-bottom: 12px; }
 .ss-actions { display: flex; gap: 10px; }
+.provider-list { margin-bottom: 12px; }
+.provider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  background: #fff;
+}
+.pr-order {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #f0f2f5;
+  color: #909399;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pr-name { flex: 1; font-weight: 500; color: #303133; }
+.pr-actions { display: flex; gap: 6px; }
 
 /* 扫描进度 */
 .scan-progress-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
