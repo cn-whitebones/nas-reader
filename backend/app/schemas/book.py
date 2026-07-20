@@ -22,6 +22,7 @@ class MetadataOut(BaseModel):
     rating: float | None = None
     douban_id: str | None = None
     source_provider: MetadataProviderName | None = None
+    scraped_at: datetime | None = None
 
 
 class MetadataUpdate(BaseModel):

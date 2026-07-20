@@ -9,6 +9,8 @@ import http from '@/api/http'
 const props = defineProps<{
   bookId: string
   alt?: string
+  // 封面版本(如 metadata.scraped_at):变化时强制重载,避免文件名不变导致缓存旧封面
+  version?: string | null
 }>()
 
 const src = ref('')
@@ -25,7 +27,8 @@ async function load() {
   revoke()
   src.value = ''
   try {
-    const res = await http.get(`/books/${props.bookId}/cover`, { responseType: 'blob' })
+    const params = props.version ? { v: props.version } : undefined
+    const res = await http.get(`/books/${props.bookId}/cover`, { responseType: 'blob', params })
     objectUrl = URL.createObjectURL(res.data)
     src.value = objectUrl
   } catch {
@@ -35,5 +38,5 @@ async function load() {
 
 onMounted(load)
 onBeforeUnmount(revoke)
-watch(() => props.bookId, load)
+watch(() => [props.bookId, props.version], load)
 </script>

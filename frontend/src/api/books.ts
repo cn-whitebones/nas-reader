@@ -33,6 +33,7 @@ export interface Metadata {
   tags: string[]
   rating: number | null
   source_provider: string | null
+  scraped_at?: string | null
 }
 
 export interface Progress {

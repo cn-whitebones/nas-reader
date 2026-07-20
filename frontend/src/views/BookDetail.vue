@@ -3,7 +3,7 @@
     <!-- 顶部主区:封面 + 标题 + 作者 + CTA -->
     <div class="hero">
       <div class="cover">
-        <CoverImage v-if="book.has_cover" :book-id="bookId" :alt="title" />
+        <CoverImage v-if="book.has_cover" :book-id="bookId" :alt="title" :version="md?.scraped_at" />
         <GeneratedCover v-else :title="title || book.file_name" :format="book.format" />
       </div>
       <div class="info">
