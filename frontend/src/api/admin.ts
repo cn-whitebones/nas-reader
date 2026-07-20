@@ -76,15 +76,36 @@ export const usersApi = {
     http.put('/settings/default-permissions', { permissions }),
 }
 
+export interface ScrapeStep {
+  provider: string
+  level: 'info' | 'success' | 'warning' | 'error'
+  message: string
+  elapsed_ms?: number | null
+}
+
+export interface ScrapeResult {
+  keyword: string
+  candidates: Candidate[]
+  steps: ScrapeStep[]
+}
+
+export interface ScrapeSettings {
+  douban_cookie_set: boolean
+  douban_cookie_length: number
+}
+
 export const scrapeApi = {
   search: (keyword: string, provider?: string) =>
-    http.get<Candidate[]>('/scrape/search', { params: { keyword, provider } }),
+    http.get<ScrapeResult>('/scrape/search', { params: { keyword, provider } }),
   scrapeBook: (bookId: string, keyword?: string, provider?: string) =>
-    http.post<Candidate[]>(`/books/${bookId}/scrape`, { keyword, provider }),
+    http.post<ScrapeResult>(`/books/${bookId}/scrape`, { keyword, provider }),
   apply: (bookId: string, candidate: Candidate) =>
     http.post<Metadata>(`/books/${bookId}/metadata/apply`, { candidate }),
   updateMetadata: (bookId: string, data: Partial<Metadata>) =>
     http.put<Metadata>(`/books/${bookId}/metadata`, data),
+  getSettings: () => http.get<ScrapeSettings>('/settings/scrape'),
+  updateSettings: (douban_cookie: string) =>
+    http.put<ScrapeSettings>('/settings/scrape', { douban_cookie }),
 }
 
 export const readingSettingsApi = {

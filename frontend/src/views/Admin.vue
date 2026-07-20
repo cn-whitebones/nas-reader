@@ -98,6 +98,39 @@
           <el-empty v-if="!users.length" description="暂无用户" />
         </div>
       </el-tab-pane>
+
+      <!-- 刮削设置 -->
+      <el-tab-pane label="刮削设置" name="scrape">
+        <div class="scrape-settings">
+          <h3 class="ss-title">豆瓣 Cookie</h3>
+          <p class="ss-desc">
+            豆瓣未登录时极易被反爬拦截,导致刮削失败。配置浏览器登录豆瓣后的 Cookie 可显著提高成功率。
+            <br />
+            获取方式:浏览器登录 <a href="https://book.douban.com" target="_blank" rel="noopener">book.douban.com</a>,
+            打开开发者工具(F12)→ Network → 刷新页面 → 任选一个请求 → 复制 Request Headers 里的 Cookie 值。
+          </p>
+          <div class="ss-status">
+            当前状态:
+            <el-tag v-if="scrapeSettings.douban_cookie_set" type="success" size="small">
+              已配置({{ scrapeSettings.douban_cookie_length }} 字符)
+            </el-tag>
+            <el-tag v-else type="info" size="small">未配置</el-tag>
+          </div>
+          <el-input
+            v-model="doubanCookieInput"
+            type="textarea"
+            :rows="4"
+            placeholder="粘贴豆瓣 Cookie,留空并保存则清除(回退到环境变量)"
+            class="ss-input"
+          />
+          <div class="ss-actions">
+            <el-button type="primary" :loading="savingScrape" @click="saveScrapeSettings">保存</el-button>
+            <el-button v-if="scrapeSettings.douban_cookie_set" :loading="savingScrape" @click="clearDoubanCookie">
+              清除
+            </el-button>
+          </div>
+        </div>
+      </el-tab-pane>
     </el-tabs>
 
     <!-- 文件源对话框 -->
@@ -160,7 +193,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { sourcesApi, usersApi, type ScanTask, type Source, type User } from '@/api/admin'
+import { sourcesApi, usersApi, scrapeApi, type ScanTask, type ScrapeSettings, type Source, type User } from '@/api/admin'
 
 const tab = ref('sources')
 const sources = ref<Source[]>([])
@@ -196,6 +229,11 @@ const sourceForm = reactive({
 // 用户
 const userDialog = ref(false)
 const userForm = reactive({ username: '', password: '', role: 'user' as 'user' | 'admin' })
+
+// 刮削设置
+const scrapeSettings = reactive<ScrapeSettings>({ douban_cookie_set: false, douban_cookie_length: 0 })
+const doubanCookieInput = ref('')
+const savingScrape = ref(false)
 
 // 权限
 const permDialog = ref(false)
@@ -357,9 +395,33 @@ async function savePermissions() {
   ElMessage.success('权限已更新')
 }
 
+async function loadScrapeSettings() {
+  const { data } = await scrapeApi.getSettings()
+  Object.assign(scrapeSettings, data)
+}
+
+async function saveScrapeSettings() {
+  savingScrape.value = true
+  try {
+    const { data } = await scrapeApi.updateSettings(doubanCookieInput.value)
+    Object.assign(scrapeSettings, data)
+    doubanCookieInput.value = ''
+    ElMessage.success('刮削设置已保存')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '保存失败')
+  } finally {
+    savingScrape.value = false
+  }
+}
+
+async function clearDoubanCookie() {
+  doubanCookieInput.value = ''
+  await saveScrapeSettings()
+}
+
 onMounted(async () => {
   window.addEventListener('resize', onResize)
-  await Promise.all([loadSources(), loadUsers()])
+  await Promise.all([loadSources(), loadUsers(), loadScrapeSettings()])
   await restoreRunningScans()
 })
 onBeforeUnmount(() => {
@@ -374,6 +436,13 @@ onBeforeUnmount(() => {
 .hint { color: #909399; font-size: 13px; }
 .perm-row { padding: 6px 0; }
 .perm-row .path { color: #c0c4cc; font-size: 12px; margin-left: 6px; }
+.scrape-settings { max-width: 640px; }
+.ss-title { font-size: 16px; margin: 0 0 8px; color: #303133; }
+.ss-desc { color: #909399; font-size: 13px; line-height: 1.7; margin: 0 0 12px; }
+.ss-desc a { color: #409eff; }
+.ss-status { margin-bottom: 10px; font-size: 14px; color: #606266; }
+.ss-input { margin-bottom: 12px; }
+.ss-actions { display: flex; gap: 10px; }
 
 /* 扫描进度 */
 .scan-progress-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }

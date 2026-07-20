@@ -8,7 +8,11 @@ import httpx
 
 from app.core.config import settings
 from app.models.book import BookMetadata, MetadataProviderName
-from app.services.metadata.base import MetadataCandidate, MetadataProvider
+from app.services.metadata.base import (
+    MetadataCandidate,
+    MetadataProvider,
+    ScrapeTracer,
+)
 from app.services.metadata.douban import DoubanProvider
 from app.services.metadata.google import GoogleBooksProvider
 from app.services.metadata.openlibrary import OpenLibraryProvider
@@ -27,19 +31,49 @@ _FALLBACK_ORDER = [
     MetadataProviderName.openlibrary,
 ]
 
+_PROVIDER_LABEL = {
+    MetadataProviderName.douban: "豆瓣读书",
+    MetadataProviderName.google: "Google Books",
+    MetadataProviderName.openlibrary: "Open Library",
+}
+
 
 async def search_candidates(
-    keyword: str, provider: MetadataProviderName | None = None, limit: int = 5
+    keyword: str,
+    provider: MetadataProviderName | None = None,
+    limit: int = 5,
+    tracer: ScrapeTracer | None = None,
+    douban_cookie: str | None = None,
 ) -> list[MetadataCandidate]:
-    """搜索候选。指定 provider 则只用该源;否则按降级链依次尝试,首个有结果即返回。"""
-    if provider is not None:
-        p = _PROVIDERS.get(provider)
-        return await p.search(keyword, limit) if p else []
+    """搜索候选。指定 provider 则只用该源;否则按降级链依次尝试,首个有结果即返回。
 
+    过程写入 tracer(若提供),供前端可视化展示。
+    douban_cookie 若提供,则用它构造豆瓣 Provider(覆盖环境变量默认值)。
+    """
+    tracer = tracer or ScrapeTracer()
+    providers = dict(_PROVIDERS)
+    if douban_cookie is not None:
+        providers[MetadataProviderName.douban] = DoubanProvider(cookie=douban_cookie)
+
+    if provider is not None:
+        tracer.info("", f"指定来源:{_PROVIDER_LABEL.get(provider, provider.value)}")
+        p = providers.get(provider)
+        if not p:
+            tracer.error("", f"未知来源:{provider}")
+            return []
+        result = await p.search(keyword, limit, tracer)
+        if not result:
+            tracer.warning("", "该来源未返回任何候选")
+        return result
+
+    tracer.info("", f"自动模式:按「豆瓣 → Google → Open Library」顺序降级尝试")
     for name in _FALLBACK_ORDER:
-        candidates = await _PROVIDERS[name].search(keyword, limit)
+        candidates = await providers[name].search(keyword, limit, tracer)
         if candidates:
+            tracer.success("", f"命中来源:{_PROVIDER_LABEL.get(name, name.value)},停止降级")
             return candidates
+        tracer.info("", f"{_PROVIDER_LABEL.get(name, name.value)} 无结果,降级到下一来源")
+    tracer.warning("", "所有来源均无结果")
     return []
 
 

@@ -159,16 +159,33 @@
             </el-select>
             <el-button type="primary" :loading="scraping" @click="runScrape">搜索</el-button>
           </div>
+
+          <!-- 刮削过程日志:让用户直观看到每一步发生了什么 -->
+          <div v-if="scrapeSteps.length" class="scrape-trace">
+            <div class="trace-head">
+              <span>刮削过程</span>
+              <span v-if="scrapeSearched" class="trace-summary">
+                共 {{ candidates.length }} 个候选
+              </span>
+            </div>
+            <div v-for="(s, i) in scrapeSteps" :key="i" class="trace-step" :class="`lv-${s.level}`">
+              <span class="trace-icon">{{ stepIcon(s.level) }}</span>
+              <span v-if="s.provider" class="trace-provider">{{ providerLabel(s.provider) }}</span>
+              <span class="trace-msg">{{ s.message }}</span>
+              <span v-if="s.elapsed_ms != null" class="trace-time">{{ s.elapsed_ms }}ms</span>
+            </div>
+          </div>
+
           <div class="candidates">
             <div v-for="(c, i) in candidates" :key="i" class="candidate" @click="applyCandidate(c)">
               <img v-if="c.cover_url" :src="c.cover_url" class="cand-cover" />
               <div class="cand-info">
-                <div class="cand-title">{{ c.title }} <el-tag size="small">{{ c.provider }}</el-tag></div>
+                <div class="cand-title">{{ c.title }} <el-tag size="small">{{ providerLabel(c.provider) }}</el-tag></div>
                 <div class="cand-sub">{{ c.authors.join(', ') }} · {{ c.publisher || '' }} {{ c.pub_date || '' }}</div>
                 <div class="cand-desc">{{ c.description }}</div>
               </div>
             </div>
-            <el-empty v-if="scrapeSearched && !candidates.length" description="无结果,可换关键词或来源" />
+            <el-empty v-if="scrapeSearched && !candidates.length" :description="emptyHint" />
           </div>
         </el-tab-pane>
         <el-tab-pane label="手动编辑" name="manual">
@@ -198,7 +215,7 @@ import { ElMessage } from 'element-plus'
 import { Reading } from '@element-plus/icons-vue'
 import { booksApi, type BookDetail } from '@/api/books'
 import { shelvesApi } from '@/api/shelves'
-import { scrapeApi, type Candidate } from '@/api/admin'
+import { scrapeApi, type Candidate, type ScrapeStep } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
 import CoverImage from '@/components/CoverImage.vue'
 import GeneratedCover from '@/components/GeneratedCover.vue'
@@ -273,6 +290,8 @@ const scrapeKeyword = ref('')
 const scrapeProvider = ref<string | undefined>(undefined)
 const candidates = ref<Candidate[]>([])
 const scraping = ref(false)
+const applying = ref(false)
+const scrapeSteps = ref<ScrapeStep[]>([])
 // 弹窗宽度:移动端近乎占满屏幕,桌面固定 640px
 const dialogWidth = computed(() => (window.innerWidth < 600 ? '94vw' : '640px'))
 const scrapeSearched = ref(false)
@@ -293,6 +312,9 @@ const manualForm = reactive({
 function openScrapeDialog() {
   scrapeDialog.value = true
   editTab.value = 'scrape'
+  scrapeSteps.value = []
+  candidates.value = []
+  scrapeSearched.value = false
   if (md.value) {
     manualForm.title = md.value.title || ''
     manualForm.subtitle = md.value.subtitle || ''
@@ -345,13 +367,44 @@ async function loadShelfState() {
   }
 }
 
+const PROVIDER_LABELS: Record<string, string> = {
+  douban: '豆瓣读书',
+  google: 'Google Books',
+  openlibrary: 'Open Library',
+  manual: '手动录入',
+}
+function providerLabel(p: string): string {
+  return PROVIDER_LABELS[p] || p
+}
+function stepIcon(level: string): string {
+  return { info: '·', success: '✓', warning: '!', error: '✕' }[level] || '·'
+}
+// 无结果时,依据过程日志给出更有针对性的提示
+const emptyHint = computed(() => {
+  const steps = scrapeSteps.value
+  if (steps.some((s) => s.message.includes('反爬'))) {
+    return '豆瓣疑似反爬拦截,建议配置 DOUBAN_COOKIE 或改用其他来源'
+  }
+  if (steps.some((s) => s.level === 'error' && s.message.includes('超时'))) {
+    return '请求超时,可能网络无法访问该来源(如 Google 需外网)'
+  }
+  if (steps.some((s) => s.level === 'error')) {
+    return '刮削过程出错,详见上方过程日志'
+  }
+  return '无匹配结果,可换关键词或来源重试'
+})
+
 async function runScrape() {
   scraping.value = true
+  scrapeSteps.value = []
+  candidates.value = []
   try {
     const { data } = await scrapeApi.scrapeBook(bookId, scrapeKeyword.value, scrapeProvider.value)
-    candidates.value = data
+    candidates.value = data.candidates
+    scrapeSteps.value = data.steps
     scrapeSearched.value = true
   } catch (e: any) {
+    scrapeSteps.value = [{ provider: '', level: 'error', message: e.response?.data?.detail || '刮削请求失败' }]
     ElMessage.error(e.response?.data?.detail || '刮削失败')
   } finally {
     scraping.value = false
@@ -359,10 +412,17 @@ async function runScrape() {
 }
 
 async function applyCandidate(c: Candidate) {
-  await scrapeApi.apply(bookId, c)
-  ElMessage.success('已应用元数据')
-  scrapeDialog.value = false
-  await load()
+  try {
+    applying.value = true
+    await scrapeApi.apply(bookId, c)
+    ElMessage.success('已应用元数据')
+    scrapeDialog.value = false
+    await load()
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '应用失败')
+  } finally {
+    applying.value = false
+  }
 }
 
 async function toggleShelf() {
@@ -573,6 +633,49 @@ onMounted(async () => {
 .scrape-head { display: flex; gap: 10px; margin-bottom: 16px; }
 .kw-input { flex: 1; min-width: 0; }
 .provider-select { width: 160px; }
+.scrape-trace {
+  background: #f8f9fb;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  max-height: 26vh;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.trace-head {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+  color: #606266;
+  margin-bottom: 6px;
+}
+.trace-summary { font-weight: 400; color: #909399; }
+.trace-step {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: #606266;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.trace-icon { width: 14px; text-align: center; flex-shrink: 0; }
+.trace-provider {
+  flex-shrink: 0;
+  color: #909399;
+  background: #eef0f3;
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: 12px;
+}
+.trace-msg { flex: 1; word-break: break-all; }
+.trace-time { flex-shrink: 0; color: #c0c4cc; font-size: 12px; }
+.lv-success { color: #67c23a; }
+.lv-success .trace-icon { color: #67c23a; }
+.lv-warning { color: #e6a23c; }
+.lv-warning .trace-icon { color: #e6a23c; }
+.lv-error { color: #f56c6c; }
+.lv-error .trace-icon { color: #f56c6c; }
 .candidates { max-height: 52vh; overflow-y: auto; }
 .candidate { display: flex; gap: 12px; padding: 12px; border-radius: 8px; cursor: pointer; }
 .candidate:hover { background: #f5f7fa; }

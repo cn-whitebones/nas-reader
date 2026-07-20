@@ -10,28 +10,46 @@ from app.db.session import get_db
 from app.models.book import Book, BookMetadata, MetadataProviderName
 from app.models.user import User
 from app.schemas.book import MetadataOut, MetadataUpdate
-from app.schemas.scrape import ApplyCandidateRequest, CandidateOut, ScrapeRequest
-from app.services.metadata.base import MetadataCandidate
+from app.schemas.scrape import (
+    ApplyCandidateRequest,
+    CandidateOut,
+    ScrapeRequest,
+    ScrapeResult,
+    ScrapeStepOut,
+)
+from app.services.metadata.base import MetadataCandidate, ScrapeTracer
 from app.services.metadata.scraper import apply_candidate, search_candidates
+from app.services.settings_store import get_douban_cookie
 from app.services.sortkey import authors_sort_key, to_sort_key
 from app.services.permission import can_read_book
 
 router = APIRouter(tags=["scrape"])
 
 
-@router.get("/scrape/search", response_model=list[CandidateOut])
+def _to_result(keyword: str, candidates, tracer: ScrapeTracer) -> ScrapeResult:
+    return ScrapeResult(
+        keyword=keyword,
+        candidates=[CandidateOut(**c.__dict__) for c in candidates],
+        steps=[ScrapeStepOut(**s.__dict__) for s in tracer.steps],
+    )
+
+
+@router.get("/scrape/search", response_model=ScrapeResult)
 async def scrape_search(
     keyword: str = Query(min_length=1, max_length=200),
     provider: MetadataProviderName | None = None,
     limit: int = Query(5, ge=1, le=10),
     _user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
 ):
-    """独立搜索候选(不绑定具体图书)。仅管理员可用。"""
-    candidates = await search_candidates(keyword, provider, limit)
-    return [CandidateOut(**c.__dict__) for c in candidates]
+    """独立搜索候选(不绑定具体图书)。仅管理员可用。返回候选与刮削过程日志。"""
+    tracer = ScrapeTracer()
+    cookie = await get_douban_cookie(db)
+    candidates = await search_candidates(keyword, provider, limit, tracer, douban_cookie=cookie)
+    return _to_result(keyword, candidates, tracer)
 
 
-@router.post("/books/{book_id}/scrape", response_model=list[CandidateOut])
+@router.post("/books/{book_id}/scrape", response_model=ScrapeResult)
 async def scrape_book(
     book_id: uuid.UUID,
     payload: ScrapeRequest,
@@ -44,8 +62,12 @@ async def scrape_book(
     if not keyword:
         md = await db.get(BookMetadata, book_id)
         keyword = (md.title if md and md.title else None) or os.path.splitext(book.file_name)[0]
-    candidates = await search_candidates(keyword, payload.provider, payload.limit)
-    return [CandidateOut(**c.__dict__) for c in candidates]
+    tracer = ScrapeTracer()
+    cookie = await get_douban_cookie(db)
+    candidates = await search_candidates(
+        keyword, payload.provider, payload.limit, tracer, douban_cookie=cookie
+    )
+    return _to_result(keyword, candidates, tracer)
 
 
 @router.post("/books/{book_id}/metadata/apply", response_model=MetadataOut)

@@ -7,4 +7,5 @@ from app.models.reading import (  # noqa: F401
     ShelfBook,
 )
 from app.models.source import ScanStatus, ScanTask, Source, SourceType  # noqa: F401
+from app.models.setting import AppSetting  # noqa: F401
 from app.models.user import Permission, User, UserRole  # noqa: F401

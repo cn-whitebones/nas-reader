@@ -1,5 +1,6 @@
-"""系统设置路由:默认文件夹权限模板(仅管理员)。"""
+"""系统设置路由:默认文件夹权限模板、刮削配置(仅管理员)。"""
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,8 +8,34 @@ from app.core.deps import get_current_admin
 from app.db.session import get_db
 from app.models.user import Permission
 from app.schemas.auth import PermissionItem, PermissionUpdate
+from app.services.settings_store import KEY_DOUBAN_COOKIE, get_setting, set_setting
 
 router = APIRouter(prefix="/settings", tags=["settings"], dependencies=[Depends(get_current_admin)])
+
+
+class ScrapeSettingsOut(BaseModel):
+    """刮削设置。出于安全考虑不回传完整 Cookie,仅返回是否已配置与长度。"""
+
+    douban_cookie_set: bool
+    douban_cookie_length: int
+
+
+class ScrapeSettingsUpdate(BaseModel):
+    douban_cookie: str
+
+
+@router.get("/scrape", response_model=ScrapeSettingsOut)
+async def get_scrape_settings(db: AsyncSession = Depends(get_db)):
+    cookie = await get_setting(db, KEY_DOUBAN_COOKIE, "")
+    return ScrapeSettingsOut(douban_cookie_set=bool(cookie), douban_cookie_length=len(cookie))
+
+
+@router.put("/scrape", response_model=ScrapeSettingsOut)
+async def update_scrape_settings(payload: ScrapeSettingsUpdate, db: AsyncSession = Depends(get_db)):
+    """更新豆瓣 Cookie。传空字符串即清除(回退到环境变量)。"""
+    await set_setting(db, KEY_DOUBAN_COOKIE, payload.douban_cookie.strip())
+    cookie = await get_setting(db, KEY_DOUBAN_COOKIE, "")
+    return ScrapeSettingsOut(douban_cookie_set=bool(cookie), douban_cookie_length=len(cookie))
 
 
 @router.get("/default-permissions", response_model=list[PermissionItem])
