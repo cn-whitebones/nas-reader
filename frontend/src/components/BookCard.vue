@@ -31,7 +31,7 @@ const wordsText = computed(() => formatWords(props.book.word_count) || '—')
 </script>
 
 <style scoped>
-.book-card { cursor: pointer; border-radius: 8px; overflow: hidden; background: var(--el-bg-color-overlay); box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08); transition: transform 0.15s; display: flex; flex-direction: column; }
+.book-card { cursor: pointer; border-radius: 8px; overflow: hidden; background: var(--el-bg-color-overlay); border: 1px solid var(--el-border-color-lighter); box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08); transition: transform 0.15s; display: flex; flex-direction: column; }
 .book-card:hover { transform: translateY(-3px); }
 .cover { position: relative; aspect-ratio: 3 / 4; background: var(--el-fill-color-light); display: flex; align-items: center; justify-content: center; overflow: hidden; }
 /* 真实封面保持原比例、用背景色填充留白,和生成封面等高;比例不

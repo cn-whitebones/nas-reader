@@ -11,7 +11,9 @@
 }
 /* 全局外壳只有明亮/暗黑两态(护眼仅阅读器正文,见 theme.ts) */
 html[data-app-theme='dark'] {
-  --app-bg: #141414;
+  /* 内容区压得比 EP 卡片表面(--el-bg-color-overlay #1d1e1f)更暗,
+     让卡片明显"浮起";再配合卡片描边强化边界 */
+  --app-bg: #0a0a0a;
   --app-surface: #1a1a1a;
   --app-text: #c8c8c8;
   --app-border: #2a2a2a;

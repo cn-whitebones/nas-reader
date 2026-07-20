@@ -490,6 +490,7 @@ onMounted(async () => {
   display: flex;
   gap: 24px;
   background: var(--el-bg-color-overlay);
+  border: 1px solid var(--el-border-color-lighter);
   padding: 24px;
   border-radius: 8px;
   /* stretch:让封面和信息列同高,视觉更整齐 */
@@ -560,6 +561,7 @@ onMounted(async () => {
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   background: var(--el-bg-color-overlay);
+  border: 1px solid var(--el-border-color-lighter);
   padding: 16px;
   border-radius: 8px;
   margin-top: 12px;
@@ -571,13 +573,13 @@ onMounted(async () => {
   justify-content: center;
   padding: 12px 4px;
   border-radius: 6px;
-  background: #f7f9fc;
+  background: var(--el-fill-color-light);
   min-height: 68px;
 }
 .stat-value {
   font-size: 20px;
   font-weight: 600;
-  color: #1f2329;
+  color: var(--el-text-color-primary);
   line-height: 1.2;
   overflow-wrap: anywhere;
   text-align: center;
@@ -587,6 +589,7 @@ onMounted(async () => {
 /* ---------- 通用 section ---------- */
 .section {
   background: var(--el-bg-color-overlay);
+  border: 1px solid var(--el-border-color-lighter);
   padding: 20px 24px;
   border-radius: 8px;
   margin-top: 12px;

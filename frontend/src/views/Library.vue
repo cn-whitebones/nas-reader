@@ -393,7 +393,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
   display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4);
   z-index: 99;
 }
-.sidebar { width: 260px; flex-shrink: 0; background: var(--el-bg-color-overlay); border-radius: 8px; padding: 12px; overflow-y: auto; }
+.sidebar { width: 260px; flex-shrink: 0; background: var(--el-bg-color-overlay); border: 1px solid var(--el-border-color-lighter); border-radius: 8px; padding: 12px; overflow-y: auto; }
 .sidebar-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 600; }
 .close-tree { display: none; }
 /* 全部图书入口:替代过去无法退出目录筛选的问题 */
