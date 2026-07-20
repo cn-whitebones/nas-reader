@@ -152,11 +152,17 @@ git status
 # 2. 本地构建前端
 cd frontend && npm run build
 
-# 3. 打 Git tag
+# 3. 更新 README.md「开发进度」章节,新增当前版本小节记录本次更新内容
+#    (最新版本在上,格式参考已有小节)
+
+# 4. 提交改动并推送
+git add -A && git commit -m "..." && git push origin main
+
+# 5. 打 Git tag 并推送
 git tag v1.3.0
 git push origin v1.3.0
 
-# 4. 构建多架构镜像并推送到 Docker Hub
+# 6. 构建多架构镜像并推送到 Docker Hub
 docker buildx build --platform linux/amd64,linux/arm64 -t whitebones/nas-reader:v1.3.0 -t whitebones/nas-reader:latest --push -f backend/Dockerfile .
 ```
 
