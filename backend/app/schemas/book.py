@@ -80,6 +80,26 @@ class BookBrief(BaseModel):
     title: str | None = None
     authors: list[str] = []
 
+    @classmethod
+    def from_model(cls, book: "Book") -> "BookBrief":
+        """从 ORM Book 模型转换为 BookBrief schema。"""
+        from app.models.book import Book as BookORM
+        md = book.book_metadata
+        return cls(
+            id=book.id,
+            file_name=book.file_name,
+            dir_path=book.dir_path,
+            format=book.format,
+            status=book.status,
+            chapter_count=book.chapter_count,
+            word_count=book.word_count,
+            file_size=book.file_size,
+            has_cover=bool(book.cover_path),
+            cover_version=md.scraped_at.isoformat() if md and md.scraped_at else None,
+            title=md.title if md else None,
+            authors=md.authors if md else [],
+        )
+
 
 class BookDetail(BaseModel):
     model_config = ConfigDict(from_attributes=True)

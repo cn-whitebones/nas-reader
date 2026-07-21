@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import uuid
 
+from fastapi import HTTPException, status
 from sqlalchemy import Select, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.book import Book
 from app.models.user import Permission, User, UserRole
@@ -69,3 +71,15 @@ async def can_read_book(db: AsyncSession, user: User, book: Book) -> bool:
     if None in sub_paths:
         return True
     return any(sp and (book.dir_path == sp or book.dir_path.startswith(f"{sp}/")) for sp in sub_paths)
+
+
+async def get_readable_book(
+    db: AsyncSession, user: User, book_id: uuid.UUID
+) -> Book:
+    """按 ID 获取图书并校验可读权限。失败抛出 HTTPException。"""
+    book = await db.get(Book, book_id, options=[selectinload(Book.book_metadata)])
+    if book is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="图书不存在")
+    if not await can_read_book(db, user, book):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该图书")
+    return book

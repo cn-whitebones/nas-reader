@@ -27,31 +27,13 @@ from app.schemas.book import (
     TreeNode,
 )
 from app.services.parsers.registry import get_parser
-from app.services.permission import apply_book_filter, can_read_book, get_readable_source_map
+from app.services.permission import apply_book_filter, can_read_book, get_readable_book, get_readable_source_map
 from app.services.scanner.covers import cover_abs_path
 from app.services.scanner.fsutil import safe_join
 
 router = APIRouter(prefix="/books", tags=["books"])
 
 _RANGE_CHUNK = 1024 * 1024
-
-
-def _brief(book: Book) -> BookBrief:
-    md = book.book_metadata
-    return BookBrief(
-        id=book.id,
-        file_name=book.file_name,
-        dir_path=book.dir_path,
-        format=book.format,
-        status=book.status,
-        chapter_count=book.chapter_count,
-        word_count=book.word_count,
-        file_size=book.file_size,
-        has_cover=bool(book.cover_path),
-        cover_version=md.scraped_at.isoformat() if md and md.scraped_at else None,
-        title=md.title if md else None,
-        authors=md.authors if md else [],
-    )
 
 
 @router.get("", response_model=Page[BookBrief])
@@ -130,7 +112,7 @@ async def list_books(
 
     ordered = base.order_by(*_order_clauses(sort, order))
     result = await db.execute(ordered.offset((page - 1) * size).limit(size))
-    items = [_brief(b) for b in result.scalars().all()]
+    items = [BookBrief.from_model(b) for b in result.scalars().all()]
     return Page(items=items, total=total, page=page, size=size)
 
 
@@ -217,7 +199,7 @@ async def book_detail(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    book = await _get_readable_book(db, user, book_id)
+    book = await get_readable_book(db, user, book_id)
     return await _detail_response(db, book, user.id)
 
 
@@ -227,7 +209,7 @@ async def book_chapters(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _get_readable_book(db, user, book_id)
+    await get_readable_book(db, user, book_id)
     result = await db.execute(select(Chapter).where(Chapter.book_id == book_id).order_by(Chapter.idx))
     return list(result.scalars().all())
 
@@ -240,7 +222,7 @@ async def book_content(
     db: AsyncSession = Depends(get_db),
 ):
     """读取指定章节的重排内容(txt/epub)。pdf 返回空 html,前端用文件流渲染。"""
-    book = await _get_readable_book(db, user, book_id)
+    book = await get_readable_book(db, user, book_id)
     result = await db.execute(select(Chapter).where(Chapter.book_id == book_id).order_by(Chapter.idx))
     chapters = list(result.scalars().all())
     if not chapters or chapter_idx >= len(chapters):
@@ -269,7 +251,7 @@ async def book_comic_image(
     db: AsyncSession = Depends(get_db),
 ):
     """漫画单章图片二进制流(替代 base64 内嵌,支持浏览器缓存与预加载)。"""
-    book = await _get_readable_book(db, user, book_id)
+    book = await get_readable_book(db, user, book_id)
     if book.format != BookFormat.comic:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="非漫画书籍")
     result = await db.execute(select(Chapter).where(Chapter.book_id == book_id).order_by(Chapter.idx))
@@ -297,7 +279,7 @@ async def book_file(
     db: AsyncSession = Depends(get_db),
 ):
     """原始文件流(pdf/epub 前端渲染用),支持 Range 断点续传。"""
-    book = await _get_readable_book(db, user, book_id)
+    book = await get_readable_book(db, user, book_id)
     abs_path = await _abs_path(db, book)
     if not abs_path or not os.path.isfile(abs_path):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
@@ -310,7 +292,7 @@ async def book_cover(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    book = await _get_readable_book(db, user, book_id)
+    book = await get_readable_book(db, user, book_id)
     if not book.cover_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="无封面")
     path = cover_abs_path(book.cover_path)
@@ -325,7 +307,7 @@ async def get_progress(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _get_readable_book(db, user, book_id)
+    await get_readable_book(db, user, book_id)
     prog = await _get_progress(db, user.id, book_id)
     return ProgressOut.model_validate(prog) if prog else ProgressOut()
 
@@ -337,7 +319,7 @@ async def put_progress(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _get_readable_book(db, user, book_id)
+    await get_readable_book(db, user, book_id)
     prog = await _get_progress(db, user.id, book_id)
     if prog is None:
         prog = ReadingProgress(user_id=user.id, book_id=book_id)
@@ -350,14 +332,14 @@ async def put_progress(
     return ProgressOut.model_validate(prog)
 
 
-@router.put("/{book_id}/comic_settings", response_model=BookDetail)
+@router.patch("/{book_id}/comic_settings", response_model=BookDetail)
 async def update_comic_settings(
     book_id: uuid.UUID,
     payload: BookComicSettingsUpdate,  # type: ignore
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    book = await _get_readable_book(db, user, book_id)
+    book = await get_readable_book(db, user, book_id)
     if payload.double_page is not None:
         book.double_page = payload.double_page
     if payload.start_right is not None:
@@ -368,13 +350,6 @@ async def update_comic_settings(
 
 
 # ---------- 内部辅助 ----------
-async def _get_readable_book(db: AsyncSession, user: User, book_id: uuid.UUID) -> Book:
-    book = await db.get(Book, book_id, options=[selectinload(Book.book_metadata)])
-    if book is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="图书不存在")
-    if not await can_read_book(db, user, book):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该图书")
-    return book
 
 
 async def _get_progress(db: AsyncSession, user_id: uuid.UUID, book_id: uuid.UUID):
