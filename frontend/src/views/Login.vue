@@ -1,20 +1,70 @@
 <template>
-  <div class="center-page">
-    <el-card class="box" header="NAS Reader 登录">
-      <el-form :model="form" label-width="80px" @submit.prevent>
-        <el-form-item label="用户名"><el-input v-model="form.username" @keyup.enter="submit" /></el-form-item>
-        <el-form-item label="密码"><el-input v-model="form.password" type="password" show-password @keyup.enter="submit" /></el-form-item>
-        <el-button type="primary" :loading="loading" style="width: 100%" @click="submit">登录</el-button>
-      </el-form>
-    </el-card>
+  <div class="login-page" :class="{ 'dark-theme': isDark }">
+    <div class="login-container">
+      <div class="login-header">
+        <div class="logo">
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="8" width="56" height="48" rx="8" fill="#409eff" />
+            <path d="M18 28 L26 18 L34 28" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M18 36 L46 36" stroke="white" stroke-width="4" stroke-linecap="round" />
+          </svg>
+        </div>
+        <h1>NAS Reader</h1>
+        <p class="subtitle">面向 NAS 场景的自托管电子书管理与在线阅读</p>
+      </div>
+
+      <el-card class="login-box" shadow="hover">
+        <el-form :model="form" label-width="70px" @submit.prevent class="login-form">
+          <el-form-item label="用户名" required>
+            <el-input
+              v-model="form.username"
+              placeholder="请输入用户名"
+              @keyup.enter="submit"
+              autocomplete="username"
+            />
+          </el-form-item>
+          <el-form-item label="密码" required>
+            <el-input
+              v-model="form.password"
+              type="password"
+              show-password
+              placeholder="请输入密码"
+              @keyup.enter="submit"
+              autocomplete="current-password"
+            />
+          </el-form-item>
+          <el-button type="primary" :loading="loading" size="large" style="width: 100%" @click="submit">
+            登录
+          </el-button>
+        </el-form>
+      </el-card>
+
+      <div class="login-footer">
+        <span>单机部署 · 数据自留</span>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { useReaderStore } from '@/stores/reader'
+
+// 登录页强制使用浅色主题，不受用户设置影响
+// 保存原始主题，离开后恢复
+const readerStore = useReaderStore()
+const originalTheme = ref<'light' | 'dark' | 'sepia'>('light')
+const isDark = ref(false)
+
+onMounted(() => {
+  // 保存用户当前主题设置，登录页强制浅色
+  originalTheme.value = readerStore.settings.theme
+  isDark.value = originalTheme.value === 'dark'
+  document.documentElement.classList.toggle('dark', false)
+})
 
 const form = reactive({ username: '', password: '' })
 const loading = ref(false)
@@ -23,9 +73,14 @@ const router = useRouter()
 const route = useRoute()
 
 async function submit() {
+  if (!form.username || !form.password) {
+    ElMessage.warning('请输入用户名和密码')
+    return
+  }
   loading.value = true
   try {
     await auth.login(form.username, form.password)
+    // 加载用户阅读设置后会自动应用主题
     router.push((route.query.redirect as string) || '/library')
   } catch (e: any) {
     ElMessage.error(e.response?.data?.detail || '登录失败')
@@ -36,6 +91,67 @@ async function submit() {
 </script>
 
 <style scoped>
-.center-page { display: flex; align-items: center; justify-content: center; height: 100%; background: #f5f7fa; }
-.box { width: 360px; max-width: 90vw; }
+.login-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.login-page.dark-theme {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+.login-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 420px;
+  padding: 20px;
+}
+
+.login-header {
+  text-align: center;
+  color: white;
+  margin-bottom: 24px;
+}
+
+.login-header .logo {
+  margin-bottom: 12px;
+}
+
+.login-header h1 {
+  margin: 0 0 6px 0;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.login-header .subtitle {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.login-box {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+}
+
+.login-box :deep(.el-card__body) {
+  padding: 28px 24px;
+}
+
+.login-form {
+  margin-top: 0;
+}
+
+.login-footer {
+  margin-top: 24px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+}
 </style>
+
