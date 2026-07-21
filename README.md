@@ -37,6 +37,57 @@
 
 当前支持 **txt / epub / pdf / mobi / zip / cbz / rar / cbr**，漫画压缩包支持自动识别横图旋转。
 
+## 功能展示
+
+### 登录页
+![登录页](docs/screenshots/desktop_01_login.png)
+
+### 书库 - 网格视图
+![书库网格](docs/screenshots/desktop_03_library_grid.png)
+
+### 书库 - 列表视图
+![书库列表](docs/screenshots/desktop_02_library_list.png)
+
+### 书架
+![书架](docs/screenshots/desktop_05_shelves.png)
+
+### 我的页面
+![我的](docs/screenshots/desktop_06_my.png)
+
+### 书籍详情（小说）
+![书籍详情-射雕](docs/screenshots/desktop_12_book_detail_novel.png)
+
+### 刮削对话框
+![刮削对话框](docs/screenshots/desktop_13_scrape_dialog.png)
+
+### 小说阅读
+![小说阅读](docs/screenshots/desktop_14_reader_text_light.png)
+
+### 书籍详情（漫画）
+![书籍详情-哆啦A梦](docs/screenshots/desktop_15_book_detail_comic.png)
+
+### 漫画阅读
+![漫画阅读](docs/screenshots/desktop_16_reader_comic.png)
+
+### 管理后台 - 文件源
+![管理-文件源](docs/screenshots/desktop_07_admin_sources.png)
+
+### 管理后台 - 添加文件源
+![添加文件源](docs/screenshots/desktop_08_admin_add_source.png)
+
+### 管理后台 - 刮削设置
+![刮削设置](docs/screenshots/desktop_11_admin_scrape.png)
+
+### 移动端截图
+
+| 筛选抽屉 | 书籍详情 |
+|---------|---------|
+| ![筛选](docs/screenshots/mobile_04_library_filter.png) | ![详情](docs/screenshots/mobile_12_book_detail_novel.png) |
+
+| 小说阅读 | 漫画阅读 |
+|---------|---------|
+| ![阅读](docs/screenshots/mobile_14_reader_text_light.png) | ![漫画](docs/screenshots/mobile_16_reader_comic.png) |
+
 ## 快速开始
 
 ### 方式一:直接使用已发布镜像(推荐,免构建)
