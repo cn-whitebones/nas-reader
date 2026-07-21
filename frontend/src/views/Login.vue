@@ -60,6 +60,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useReaderStore } from '@/stores/reader'
+import { THEME_STATUS_COLOR, setStatusBarColor } from '@/theme'
 
 // 登录页强制使用浅色主题，不受用户设置影响
 // 保存原始主题，离开后恢复
@@ -72,6 +73,8 @@ onMounted(() => {
   originalTheme.value = readerStore.settings.theme
   isDark.value = originalTheme.value === 'dark'
   document.documentElement.classList.toggle('dark', false)
+  // 状态栏颜色匹配浅色主题，让刘海区域背景正确
+  setStatusBarColor(THEME_STATUS_COLOR.light)
 })
 
 const form = reactive({ username: '', password: '' })
@@ -104,11 +107,16 @@ async function submit() {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
+  /* PWA 沉浸:让背景渐变延伸到刘海区域 */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-attachment: fixed;
 }
 
 .login-page.dark-theme {
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  background-attachment: fixed;
 }
 
 .login-container {
@@ -117,7 +125,7 @@ async function submit() {
   align-items: center;
   width: 100%;
   max-width: 420px;
-  padding: 20px;
+  padding: calc(20px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
 }
 
 .login-header {
