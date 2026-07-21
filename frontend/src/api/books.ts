@@ -97,5 +97,5 @@ export const booksApi = {
   putProgress: (id: string, p: Omit<Progress, 'updated_at'>) =>
     http.put<Progress>(`/books/${id}/progress`, p),
   updateComicSettings: (id: string, settings: BookComicSettingsUpdate) =>
-    http.put<BookDetail>(`/books/${id}/comic_settings`, settings),
+    http.patch<BookDetail>(`/books/${id}/comic_settings`, settings),
 }

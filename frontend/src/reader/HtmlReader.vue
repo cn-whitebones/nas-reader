@@ -15,6 +15,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useReaderStore } from '@/stores/reader'
+import { DEBOUNCE_RESIZE } from '@/constants'
 
 const props = defineProps<{
   html: string
@@ -247,7 +248,7 @@ function onResize() {
   resizeTimer = setTimeout(() => {
     const off = charOffsetOfCurrentPage()
     paginate(off)
-  }, 150)
+  }, DEBOUNCE_RESIZE)
 }
 
 onMounted(() => {

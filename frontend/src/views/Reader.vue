@@ -147,6 +147,7 @@ import HtmlReader from '@/reader/HtmlReader.vue'
 import PdfReader from '@/reader/PdfReader.vue'
 import SettingsPanel from '@/reader/SettingsPanel.vue'
 import { useViewport } from '@/composables/useViewport'
+import { DEBOUNCE_PROGRESS } from '@/constants'
 
 const route = useRoute()
 const router = useRouter()
@@ -642,7 +643,7 @@ function saveProgress(location: string, percentOverride?: number) {
   pendingLocation = location
   pendingPercentOverride = percentOverride
   if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(commitProgress, 800)
+  saveTimer = setTimeout(commitProgress, DEBOUNCE_PROGRESS)
 }
 
 // 立即把待保存进度写入后端(无防抖);无待存内容则跳过

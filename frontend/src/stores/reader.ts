@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { readingSettingsApi } from '@/api/admin'
 import { applyTheme } from '@/theme'
+import { DEBOUNCE_SETTINGS } from '@/constants'
 
 export interface ReaderSettings {
   font_family: string
@@ -43,7 +44,7 @@ export const useReaderStore = defineStore('reader', {
       if (saveTimer) clearTimeout(saveTimer)
       saveTimer = setTimeout(() => {
         readingSettingsApi.update(this.settings).catch(() => {})
-      }, 600)
+      }, DEBOUNCE_SETTINGS)
     },
   },
 })
