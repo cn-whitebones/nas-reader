@@ -3,10 +3,18 @@
     <div class="login-container">
       <div class="login-header">
         <div class="logo">
-          <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="4" y="8" width="56" height="48" rx="8" fill="#409eff" />
-            <path d="M18 28 L26 18 L34 28" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M18 36 L46 36" stroke="white" stroke-width="4" stroke-linecap="round" />
+          <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- 书本底座 -->
+            <rect x="10" y="15" width="80" height="70" rx="8" fill="white" opacity="0.95" />
+            <!-- 书脊蓝色 -->
+            <rect x="10" y="15" width="12" height="70" fill="#409eff" />
+            <!-- 多层书页 -->
+            <path d="M28 25 L40 20 L80 20 L80 80 L28 80 Z" fill="#f8f9fa" stroke="#dee2e6" stroke-width="1" />
+            <path d="M28 35 L45 30 L80 30 L80 80 L28 80 Z" fill="#e9ecef" stroke="#dee2e6" stroke-width="1" />
+            <path d="M28 45 L50 40 L80 40 L80 80 L28 80 Z" fill="#dee2e6" stroke="#dee2e6" stroke-width="1" />
+            <!-- 红色书签 -->
+            <circle cx="70" cy="30" r="8" fill="#f56565" />
+            <path d="M70 36 L70 48 L64 42 L76 42 Z" fill="#c53030" />
           </svg>
         </div>
         <h1>NAS Reader</h1>
