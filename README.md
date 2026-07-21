@@ -1,5 +1,7 @@
 # NAS Reader — 电子书管理与阅读应用
 
+> **本项目所有代码全部由 [Claude Code](https://claude.ai/code) 开发完成**。
+
 面向 NAS 场景的自托管电子书管理与在线阅读应用。通过 docker-compose 一键部署，把本地/NAS 上的书目录映射进容器即可管理和阅读。
 
 ## 技术栈
