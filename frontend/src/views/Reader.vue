@@ -146,10 +146,12 @@ import { applyTheme, setStatusBarColor, THEME_STATUS_COLOR, type AppTheme } from
 import HtmlReader from '@/reader/HtmlReader.vue'
 import PdfReader from '@/reader/PdfReader.vue'
 import SettingsPanel from '@/reader/SettingsPanel.vue'
+import { useViewport } from '@/composables/useViewport'
 
 const route = useRoute()
 const router = useRouter()
 const bookId = route.params.id as string
+const { isMobile } = useViewport()
 
 const readerStore = useReaderStore()
 const settings = computed(() => readerStore.settings)
@@ -198,7 +200,6 @@ const comicImgRef = ref<HTMLImageElement>()
 const comicRotate90 = ref(false)
 const comicImgLoaded = ref(false)
 const userManualRotated = ref(false) // 用户是否手动点过旋转按钮
-const isMobile = ref(window.innerWidth < 700) // 移动端阈值
 // 双页漫画相关
 const comicIsDoublePage = ref(false) // 当前页是否是双页横向
 const comicSubPage = ref(0) // 子页:0=左半页,1=右半页
@@ -439,19 +440,13 @@ onMounted(async () => {
     await loadChapter(curChapter.value)
   }
   window.addEventListener('keydown', onKeydown)
-  window.addEventListener('resize', onWindowResize)
   // 兜底保存:切后台/锁屏用 visibilitychange,关闭/刷新用 pagehide
   document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('pagehide', commitProgress)
 })
 
-function onWindowResize() {
-  isMobile.value = window.innerWidth < 700
-}
-
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
-  window.removeEventListener('resize', onWindowResize)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('pagehide', commitProgress)
   // 离开阅读器:恢复全局状态栏颜色(护眼在全局归明亮)

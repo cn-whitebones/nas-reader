@@ -236,10 +236,11 @@ import { useAuthStore } from '@/stores/auth'
 import CoverImage from '@/components/CoverImage.vue'
 import GeneratedCover from '@/components/GeneratedCover.vue'
 import CandidateCover from '@/components/CandidateCover.vue'
+import { useViewport } from '@/composables/useViewport'
 
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.isAdmin)
-const isMobile = ref(window.innerWidth < 700)
+const { isMobile } = useViewport()
 
 const route = useRoute()
 const bookId = route.params.id as string

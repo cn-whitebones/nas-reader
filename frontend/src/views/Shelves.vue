@@ -45,11 +45,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Search, SortDown, SortUp } from '@element-plus/icons-vue'
 import BookGrid from '@/components/BookGrid.vue'
 import { shelvesApi, type Shelf } from '@/api/shelves'
 import type { BookBrief } from '@/api/books'
+import { useViewport } from '@/composables/useViewport'
+
+const { isMobile } = useViewport()
 
 // 书架排序键与书库一致,再加"收藏时间"作为默认(最近收藏排前)
 const SORTS = [
@@ -72,11 +75,6 @@ const order = ref<'asc' | 'desc'>('desc')
 const loading = ref(true)
 
 const hasQuery = computed(() => keyword.value.trim().length > 0)
-
-const isMobile = ref(window.innerWidth <= 700)
-function onResize() {
-  isMobile.value = window.innerWidth <= 700
-}
 
 async function reload() {
   loading.value = true
@@ -119,10 +117,8 @@ function onPage(p: number) {
 }
 
 onMounted(async () => {
-  window.addEventListener('resize', onResize)
   await Promise.all([loadShelfMeta(), reload()])
 })
-onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 </script>
 
 <style scoped>

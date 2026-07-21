@@ -167,15 +167,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { Grid, List, Filter, Operation, SortUp, SortDown, Files, Search, Menu } from '@element-plus/icons-vue'
 import BookGrid from '@/components/BookGrid.vue'
 import BookList from '@/components/BookList.vue'
 import { booksApi, type BookBrief, type TreeNode } from '@/api/books'
 import { useRoute, useRouter } from 'vue-router'
+import { useViewport } from '@/composables/useViewport'
 
 const route = useRoute()
 const router = useRouter()
+const { isMobile } = useViewport()
 
 const FORMATS = [
   { label: 'TXT', value: 'txt' },
@@ -230,13 +232,10 @@ const viewMode = ref<'grid' | 'list'>(
   (localStorage.getItem('library_view_mode') as 'grid' | 'list') || 'grid'
 )
 
-// 响应式判断移动端
-const isMobile = ref(window.innerWidth <= 700)
-function onResize() {
-  isMobile.value = window.innerWidth <= 700
-  // 桌面态强制关闭移动端抽屉,避免残留 mask
-  if (!isMobile.value) mobileTreeOpen.value = false
-}
+// 桌面态强制关闭移动端抽屉,避免残留 mask
+watch(isMobile, (newVal) => {
+  if (!newVal) mobileTreeOpen.value = false
+})
 
 const hasAdvancedFilter = computed(
   () => chapterRange.value !== '' || wordRange.value !== '' || coverFilter.value !== undefined
@@ -397,11 +396,9 @@ function resetFilters() {
 }
 
 onMounted(async () => {
-  window.addEventListener('resize', onResize)
   restoreFromQuery()
   await Promise.all([loadTree(), reload()])
 })
-onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 </script>
 
 <style scoped>

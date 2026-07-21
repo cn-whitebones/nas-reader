@@ -224,10 +224,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { sourcesApi, usersApi, scrapeApi, type ProviderItem, type ScanTask, type ScrapeSettings, type Source, type User } from '@/api/admin'
+import { useViewport } from '@/composables/useViewport'
 
+const { isMobile } = useViewport()
 const tab = ref('sources')
 const sources = ref<Source[]>([])
 const users = ref<User[]>([])
@@ -237,16 +239,15 @@ const scanProgress = reactive<Record<string, ScanTask>>({})
 const pollTimers: Record<string, ReturnType<typeof setInterval>> = {}
 
 // 响应式:移动端改用卡片列表,避免表格横向溢出
-const isMobile = ref(window.innerWidth < 768)
 const dialogWidth = ref(isMobile.value ? '94vw' : '460px')
 const userDialogWidth = ref(isMobile.value ? '94vw' : '400px')
 const permDialogWidth = ref(isMobile.value ? '94vw' : '440px')
-function onResize() {
-  isMobile.value = window.innerWidth < 768
+
+watch(isMobile, () => {
   dialogWidth.value = isMobile.value ? '94vw' : '460px'
   userDialogWidth.value = isMobile.value ? '94vw' : '400px'
   permDialogWidth.value = isMobile.value ? '94vw' : '440px'
-}
+})
 
 // 文件源
 const sourceDialog = ref(false)
@@ -481,12 +482,10 @@ async function saveProviders() {
 }
 
 onMounted(async () => {
-  window.addEventListener('resize', onResize)
   await Promise.all([loadSources(), loadUsers(), loadScrapeSettings(), loadProviders()])
   await restoreRunningScans()
 })
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', onResize)
   Object.values(pollTimers).forEach(clearInterval)
 })
 </script>
