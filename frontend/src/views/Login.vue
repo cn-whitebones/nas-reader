@@ -55,7 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
@@ -67,14 +67,28 @@ import { THEME_STATUS_COLOR, setStatusBarColor } from '@/theme'
 const readerStore = useReaderStore()
 const originalTheme = ref<'light' | 'dark' | 'sepia'>('light')
 const isDark = ref(false)
+let originalBodyBackground = ''
 
 onMounted(() => {
   // 保存用户当前主题设置，登录页强制浅色
   originalTheme.value = readerStore.settings.theme
   isDark.value = originalTheme.value === 'dark'
   document.documentElement.classList.toggle('dark', false)
-  // 状态栏颜色匹配浅色主题，让刘海区域背景正确
-  setStatusBarColor(THEME_STATUS_COLOR.light)
+
+  // 保存原始 body 背景，离开恢复
+  originalBodyBackground = document.body.style.background || ''
+  // 状态栏+刘海颜色直接取自登录页背景，让渐变延伸到刘海
+  document.body.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+  if (isDark.value) {
+    document.body.style.background = 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
+  }
+  // 更新meta主题色
+  setStatusBarColor(isDark.value ? THEME_STATUS_COLOR.dark : THEME_STATUS_COLOR.light)
+})
+
+onUnmounted(() => {
+  // 离开登录页恢复 body 背景，由主题系统接管
+  document.body.style.background = originalBodyBackground
 })
 
 const form = reactive({ username: '', password: '' })
@@ -101,22 +115,26 @@ async function submit() {
 }
 </script>
 
+<style>
+/* 给 html/body 也设置，确保刘海区域也能看到渐变 */
+html, body {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  background-attachment: fixed !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  /* 系统深色不影响，我们已经强制浅色 */
+}
+</style>
+
 <style scoped>
 .login-page {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  /* PWA 沉浸:让背景渐变延伸到刘海区域 */
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  background-attachment: fixed;
-}
-
-.login-page.dark-theme {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  background-attachment: fixed;
 }
 
 .login-container {
@@ -125,7 +143,9 @@ async function submit() {
   align-items: center;
   width: 100%;
   max-width: 420px;
-  padding: calc(20px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
+  padding: 20px 20px;
+  padding-top: calc(20px + env(safe-area-inset-top));
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
 }
 
 .login-header {
