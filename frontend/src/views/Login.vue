@@ -55,23 +55,55 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useReaderStore } from '@/stores/reader'
+import { THEME_STATUS_COLOR, setStatusBarColor } from '@/theme'
 
 // 登录页强制使用浅色主题，不受用户设置影响
-// 保存原始主题，离开后恢复
+// 保存**所有**原始状态，离开后完整恢复
 const readerStore = useReaderStore()
 const originalTheme = ref<'light' | 'dark' | 'sepia'>('light')
 const isDark = ref(false)
+let originalHtmlBackground = ''
+let originalBodyBackground = ''
+let originalDataAppTheme = ''
+let originalHasDarkClass = false
 
 onMounted(() => {
-  // 保存用户当前主题设置，登录页强制浅色
+  // 保存用户当前所有相关状态
   originalTheme.value = readerStore.settings.theme
   isDark.value = originalTheme.value === 'dark'
+  originalHasDarkClass = document.documentElement.classList.contains('dark')
+  originalDataAppTheme = document.documentElement.dataset.appTheme || ''
+
+  // 登录页强制浅色主题
   document.documentElement.classList.toggle('dark', false)
+  document.documentElement.dataset.appTheme = 'light'
+
+  // 保存原始背景，离开恢复 —— 让渐变延伸到 html/body 覆盖状态栏/刘海
+  originalHtmlBackground = document.documentElement.style.background || ''
+  originalBodyBackground = document.body.style.background || ''
+
+  // 设置渐变背景
+  const bg = isDark.value
+    ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
+    : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+  document.documentElement.style.background = bg
+  document.body.style.background = bg
+
+  // 更新meta主题色
+  setStatusBarColor(isDark.value ? THEME_STATUS_COLOR.dark : '#667eea')
+})
+
+onUnmounted(() => {
+  // 完整恢复所有原始状态，一点不漏
+  document.documentElement.classList.toggle('dark', originalHasDarkClass)
+  document.documentElement.dataset.appTheme = originalDataAppTheme
+  document.documentElement.style.background = originalHtmlBackground
+  document.body.style.background = originalBodyBackground
 })
 
 const form = reactive({ username: '', password: '' })
@@ -104,11 +136,12 @@ async function submit() {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.login-page.dark-theme {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .login-container {
