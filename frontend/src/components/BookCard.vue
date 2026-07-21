@@ -1,7 +1,7 @@
 <template>
   <div class="book-card" @click="$router.push(`/books/${book.id}`)">
     <div class="cover">
-      <CoverImage v-if="book.has_cover" :book-id="book.id" :alt="displayTitle" :version="book.cover_version" />
+      <CoverImage v-if="book.has_cover" blur-fill :book-id="book.id" :alt="displayTitle" :version="book.cover_version" />
       <GeneratedCover v-else :title="displayTitle" :format="book.format" />
       <span class="badge">{{ book.format.toUpperCase() }}</span>
     </div>
@@ -34,9 +34,8 @@ const wordsText = computed(() => formatWords(props.book.word_count) || '—')
 .book-card { cursor: pointer; border-radius: 8px; overflow: hidden; background: var(--el-bg-color-overlay); border: 1px solid var(--el-border-color-lighter); box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08); transition: transform 0.15s; display: flex; flex-direction: column; }
 .book-card:hover { transform: translateY(-3px); }
 .cover { position: relative; aspect-ratio: 3 / 4; background: var(--el-fill-color-light); display: flex; align-items: center; justify-content: center; overflow: hidden; }
-/* 真实封面保持原比例、用背景色填充留白,和生成封面等高;比例不
-   对的封面四周留空,居中显示,保证网格中所有卡片高度一致 */
-.cover img { max-width: 100%; max-height: 100%; object-fit: contain; }
+/* 真实封面由 CoverImage 的 blur-fill 双层结构处理:模糊放大背景填满留白、
+   原比例前景居中,网格中所有卡片等高且无生硬白边;生成封面自身即 3:4 满铺 */
 .badge { position: absolute; left: 6px; bottom: 6px; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.05em; }
 /* meta 四行固定结构:书名/作者/章节/字数,每行独立单行且高度固定,
    保证网格所有卡片视觉一致(无 chip、无 wrap、无 min-height 兜底) */
