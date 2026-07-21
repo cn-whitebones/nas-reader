@@ -2,7 +2,8 @@
 
 抽取重复代码到此处，供多个端点复用。
 """
-from sqlalchemy import Select, func, or_, cast, String
+from sqlalchemy import Select, func, or_, cast, String, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.models.book import Book, BookMetadata
@@ -66,3 +67,26 @@ def get_order_clauses(sort: str, order: str):
 
     # NULL 排最后，稳定次键:目录 + 文件名
     return [_d(primary), Book.dir_path.asc(), Book.file_name.asc()]
+
+
+async def paginate_query(
+    stmt: Select,
+    page: int,
+    size: int,
+    db: AsyncSession,
+) -> tuple[int, list]:
+    """通用分页查询。
+
+    Returns:
+        (total, items) - 总数和当前页结果列表
+    """
+    # 计数：清除原有排序避免干扰count
+    count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
+    total = await db.scalar(count_stmt) or 0
+
+    # 分页查询
+    stmt = stmt.offset((page - 1) * size).limit(size)
+    result = await db.execute(stmt)
+    items = list(result.scalars().all())
+
+    return total, items

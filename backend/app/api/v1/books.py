@@ -28,7 +28,7 @@ from app.schemas.book import (
 )
 from app.services.parsers.registry import get_parser
 from app.services.permission import apply_book_filter, can_read_book, get_readable_book, get_readable_source_map
-from app.services.book_query import apply_keyword_filter, get_order_clauses
+from app.services.book_query import apply_keyword_filter, get_order_clauses, paginate_query
 from app.services.scanner.covers import cover_abs_path
 from app.services.scanner.fsutil import safe_join
 
@@ -97,12 +97,9 @@ async def list_books(
     if has_cover is not None:
         base = base.where(Book.cover_path.is_not(None) if has_cover else Book.cover_path.is_(None))
 
-    count_stmt = select(func.count()).select_from(base.order_by(None).subquery())
-    total = await db.scalar(count_stmt) or 0
-
     ordered = base.order_by(*get_order_clauses(sort, order))
-    result = await db.execute(ordered.offset((page - 1) * size).limit(size))
-    items = [BookBrief.from_model(b) for b in result.scalars().all()]
+    total, rows = await paginate_query(ordered, page, size, db)
+    items = [BookBrief.from_model(b) for b in rows]
     return Page(items=items, total=total, page=page, size=size)
 
 
@@ -255,8 +252,8 @@ async def get_progress(
     return ProgressOut.model_validate(prog) if prog else ProgressOut()
 
 
-@router.put("/{book_id}/progress", response_model=ProgressOut)
-async def put_progress(
+@router.patch("/{book_id}/progress", response_model=ProgressOut)
+async def update_progress(
     book_id: uuid.UUID,
     payload: ProgressUpdate,
     user: User = Depends(get_current_user),

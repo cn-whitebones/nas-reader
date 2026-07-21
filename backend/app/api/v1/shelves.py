@@ -18,7 +18,7 @@ from app.models.user import User
 from app.schemas.auth import Page
 from app.schemas.book import BookBrief, ShelfBookAdd, ShelfOut
 from app.services.permission import can_read_book
-from app.services.book_query import apply_keyword_filter, get_order_clauses
+from app.services.book_query import apply_keyword_filter, get_order_clauses, paginate_query
 from app.services.shelf import get_or_create_default_shelf
 
 router = APIRouter(prefix="/shelves", tags=["shelves"])
@@ -82,13 +82,11 @@ async def my_shelf_books_paged(
     base = apply_book_filter(base, user, source_map)
     # 关键字模糊匹配，与 books.py 一致
     base = apply_keyword_filter(base, q)
-    count_stmt = select(func.count()).select_from(base.order_by(None).subquery())
-    total = await db.scalar(count_stmt) or 0
 
-    # 排序与书库一致:nulls last
+    # 排序与分页
     ordered = base.order_by(*get_order_clauses(sort, order))
-    result = await db.execute(ordered.offset((page - 1) * size).limit(size))
-    items = [BookBrief.from_model(b) for b in result.scalars().all()]
+    total, rows = await paginate_query(ordered, page, size, db)
+    items = [BookBrief.from_model(b) for b in rows]
     return Page(items=items, total=total, page=page, size=size)
 
 

@@ -18,6 +18,7 @@ from app.schemas.auth import (
     UserOut,
     UserUpdate,
 )
+from app.services.book_query import paginate_query
 from app.services.shelf import get_or_create_default_shelf
 
 router = APIRouter(prefix="/users", tags=["users"], dependencies=[Depends(get_current_admin)])
@@ -43,11 +44,9 @@ async def list_users(
     size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    total = await db.scalar(select(func.count()).select_from(User))
-    result = await db.execute(
-        select(User).order_by(User.created_at.desc()).offset((page - 1) * size).limit(size)
-    )
-    return Page(items=list(result.scalars().all()), total=total or 0, page=page, size=size)
+    stmt = select(User).order_by(User.created_at.desc())
+    total, items = await paginate_query(stmt, page, size, db)
+    return Page(items=items, total=total, page=page, size=size)
 
 
 @router.post("", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -108,16 +107,5 @@ async def set_user_permissions(
     user = await db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
-    await db.execute(delete(Permission).where(Permission.user_id == user_id))
-    for item in payload.permissions:
-        db.add(
-            Permission(
-                user_id=user_id,
-                source_id=item.source_id,
-                sub_path=item.sub_path,
-                can_read=item.can_read,
-            )
-        )
-    await db.commit()
-    result = await db.execute(select(Permission).where(Permission.user_id == user_id))
-    return list(result.scalars().all())
+    from app.services.permission_service import replace_permissions
+    return await replace_permissions(db, user_id, payload.permissions)

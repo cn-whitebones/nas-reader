@@ -186,7 +186,7 @@ async def apply_metadata(
     return MetadataOut.model_validate(md)
 
 
-@router.put("/books/{book_id}/metadata", response_model=MetadataOut)
+@router.patch("/books/{book_id}/metadata", response_model=MetadataOut)
 async def update_metadata(
     book_id: uuid.UUID,
     payload: MetadataUpdate,
