@@ -148,6 +148,7 @@ import PdfReader from '@/reader/PdfReader.vue'
 import SettingsPanel from '@/reader/SettingsPanel.vue'
 import { useViewport } from '@/composables/useViewport'
 import { DEBOUNCE_PROGRESS } from '@/constants'
+import { globalComicBlobCache } from '@/utils/blobCache'
 
 const route = useRoute()
 const router = useRouter()
@@ -247,36 +248,22 @@ async function reloadCurrentPage() {
 
 // —— 漫画图片:blob objectURL + 内存 LRU 缓存 + 相邻章预加载 ——
 const comicImgSrc = ref('') // 当前显示的漫画图 objectURL
-const comicImgCache = new Map<number, string>() // chapterIdx -> objectURL
-const COMIC_CACHE_MAX = 6
 
 // 取某章图片的 objectURL:命中缓存直接返回,否则请求 blob 并缓存
+// 使用全局统一 LRU 缓存管理，自动淘汰最久未使用
 async function getComicObjectUrl(idx: number): Promise<string> {
-  const cached = comicImgCache.get(idx)
-  if (cached) {
-    // LRU:命中后移到最后
-    comicImgCache.delete(idx)
-    comicImgCache.set(idx, cached)
-    return cached
-  }
+  const cacheKey = `${bookId}-${idx}`
   const { data } = await booksApi.comicImage(bookId, idx)
-  const url = URL.createObjectURL(data as Blob)
-  comicImgCache.set(idx, url)
-  // 超出上限:逐出最早的(且不是当前章)
-  while (comicImgCache.size > COMIC_CACHE_MAX) {
-    const oldest = comicImgCache.keys().next().value
-    if (oldest === undefined || oldest === curChapter.value) break
-    const u = comicImgCache.get(oldest)
-    if (u) URL.revokeObjectURL(u)
-    comicImgCache.delete(oldest)
-  }
-  return url
+  return globalComicBlobCache.getOrCreate(data as Blob, cacheKey)
 }
 
 // 后台预取相邻章(主要是下一章),失败静默
 function prefetchComic(idx: number) {
   if (idx < 0 || idx >= chapters.value.length) return
-  if (comicImgCache.has(idx)) return
+  // Check global cache
+  const cacheKey = `${bookId}-${idx}`
+  // @ts-ignore internal access
+  if ((globalComicBlobCache as any).cache.has(cacheKey)) return
   getComicObjectUrl(idx).catch(() => {})
 }
 
@@ -454,9 +441,11 @@ onBeforeUnmount(() => {
   applyTheme(settings.value.theme)
   // 离开阅读页(关闭/刷新)时立即写入最新进度
   commitProgress()
-  // 释放漫画 blob objectURL,避免内存泄漏
-  for (const url of comicImgCache.values()) URL.revokeObjectURL(url)
-  comicImgCache.clear()
+  // 当前图书所有缓存的漫画图片 URL 都可以清理
+  // 全局缓存会自动淘汰，但这里主动清理避免占用
+  for (let idx = 0; idx < (chapters.value?.length || 0); idx++) {
+    globalComicBlobCache.delete(`${bookId}-${idx}`)
+  }
 })
 
 // 离开路由前(返回/跳转)先完成进度保存,确保 BookDetail 刷新能拿到新进度
@@ -478,7 +467,14 @@ async function loadChapter(idx: number, goLast = false) {
   if (isComic.value) {
     goLastOnLoad.value = goLast
     // 命中缓存则不显 loading(直接秒换),未命中才置 loading 态
-    if (!comicImgCache.has(idx)) comicImgLoaded.value = false
+    const cacheKey = `${bookId}-${idx}`
+    // 检查全局缓存是否存在
+    let isCached = false
+    try {
+      // @ts-ignore - internal map access for checking existence
+      isCached = globalComicBlobCache['cache'].has(cacheKey)
+    } catch {}
+    if (!isCached) comicImgLoaded.value = false
     // 先取到新章 objectURL,再统一切换显示状态:
     // 避免"先重置 double、comicImgSrc 仍是旧值"导致 @load 读到旧图(跨章/目录跳转 bug)
     const url = await getComicObjectUrl(idx)

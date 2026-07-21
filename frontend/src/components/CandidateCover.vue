@@ -9,6 +9,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import http from '@/api/http'
+import { globalComicBlobCache } from '@/utils/blobCache'
 
 // 候选封面走后端代理加载:豆瓣图床有 Referer 防盗链,浏览器直接 <img src>
 // 会 403,故用带 JWT 的 blob 请求经后端代理拉取(见 /scrape/cover-proxy)。
@@ -16,17 +17,13 @@ const props = defineProps<{ url?: string | null }>()
 
 const src = ref('')
 const loading = ref(false)
-let objectUrl: string | null = null
-
-function revoke() {
-  if (objectUrl) {
-    URL.revokeObjectURL(objectUrl)
-    objectUrl = null
-  }
-}
+const cacheKey = () => `cover-${btoa(props.url || '')}`
 
 async function load() {
-  revoke()
+  // revoke old if any
+  if (props.url) {
+    globalComicBlobCache.delete(cacheKey())
+  }
   src.value = ''
   if (!props.url) return
   loading.value = true
@@ -35,8 +32,7 @@ async function load() {
       params: { url: props.url },
       responseType: 'blob',
     })
-    objectUrl = URL.createObjectURL(res.data)
-    src.value = objectUrl
+    src.value = globalComicBlobCache.getOrCreate(res.data, cacheKey())
   } catch {
     // 加载失败保持空,显示"无图"占位
   } finally {
@@ -45,7 +41,11 @@ async function load() {
 }
 
 onMounted(load)
-onBeforeUnmount(revoke)
+onBeforeUnmount(() => {
+  if (props.url) {
+    globalComicBlobCache.delete(cacheKey())
+  }
+})
 watch(() => props.url, load)
 </script>
 
