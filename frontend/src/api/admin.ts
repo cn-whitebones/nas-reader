@@ -109,10 +109,10 @@ export const scrapeApi = {
   apply: (bookId: string, candidate: Candidate) =>
     http.post<Metadata>(`/books/${bookId}/metadata/apply`, { candidate }),
   updateMetadata: (bookId: string, data: Partial<Metadata>) =>
-    http.put<Metadata>(`/books/${bookId}/metadata`, data),
+    http.patch<Metadata>(`/scrape/books/${bookId}/metadata`, data),
   getSettings: () => http.get<ScrapeSettings>('/settings/scrape'),
   updateSettings: (douban_cookie: string) =>
-    http.put<ScrapeSettings>('/settings/scrape', { douban_cookie }),
+    http.patch<ScrapeSettings>('/settings/scrape', { douban_cookie }),
   getProviders: () => http.get<ProviderItem[]>('/settings/scrape/providers'),
   updateProviders: (providers: ProviderItem[]) =>
     http.put<ProviderItem[]>('/settings/scrape/providers', { providers }),
@@ -191,5 +191,5 @@ function parseSseEvent(raw: string): { event: string; data: any } | null {
 
 export const readingSettingsApi = {
   get: () => http.get('/reading-settings'),
-  update: (data: Record<string, unknown>) => http.put('/reading-settings', data),
+  update: (data: Record<string, unknown>) => http.patch('/reading-settings', data),
 }
