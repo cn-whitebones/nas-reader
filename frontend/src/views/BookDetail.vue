@@ -547,7 +547,7 @@ onMounted(async () => {
   margin: 0 0 6px;
   font-size: 22px;
   line-height: 1.35;
-  color: #1f2329;
+  color: var(--el-text-color-primary);
   overflow-wrap: anywhere;
 }
 .subtitle { color: var(--el-text-color-secondary); margin: 0 0 8px; font-size: 14px; }

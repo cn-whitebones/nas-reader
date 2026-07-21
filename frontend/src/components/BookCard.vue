@@ -32,7 +32,10 @@ const wordsText = computed(() => formatWords(props.book.word_count) || '—')
 
 <style scoped>
 .book-card { cursor: pointer; border-radius: 8px; overflow: hidden; background: var(--el-bg-color-overlay); border: 1px solid var(--el-border-color-lighter); box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08); transition: transform 0.15s; display: flex; flex-direction: column; }
-.book-card:hover { transform: translateY(-3px); }
+/* 仅在支持悬停的设备(桌面鼠标)上浮起;触摸屏 tap 后 hover 会被粘住导致卡片错位 */
+@media (hover: hover) {
+  .book-card:hover { transform: translateY(-3px); }
+}
 .cover { position: relative; aspect-ratio: 3 / 4; background: var(--el-fill-color-light); display: flex; align-items: center; justify-content: center; overflow: hidden; }
 /* 真实封面由 CoverImage 的 blur-fill 双层结构处理:模糊放大背景填满留白、
    原比例前景居中,网格中所有卡片等高且无生硬白边;生成封面自身即 3:4 满铺 */

@@ -117,14 +117,14 @@
         <template v-if="isMobile">
           <div class="fld">
             <label>格式</label>
-            <el-select v-model="formatFilter" placeholder="全部格式" clearable style="width: 100%">
+            <el-select v-model="formatFilter" placeholder="全部格式" clearable style="width: 100%" @change="onFilterChange">
               <el-option v-for="f in FORMATS" :key="f.value" :label="f.label" :value="f.value" />
             </el-select>
           </div>
           <div class="fld">
             <label>排序方式</label>
             <div class="sort-row">
-              <el-select v-model="sort" style="flex: 1">
+              <el-select v-model="sort" style="flex: 1" @change="onSortChange">
                 <el-option v-for="s in SORTS" :key="s.value" :label="s.label" :value="s.value" />
               </el-select>
               <el-button :icon="order === 'asc' ? SortUp : SortDown" @click="toggleOrder">
@@ -135,27 +135,23 @@
         </template>
 
         <div class="fld">
-          <label>章节数范围</label>
-          <div class="range-row">
-            <el-input-number v-model="chapterMin" :min="0" :controls="false" placeholder="最少" />
-            <span class="tilde">~</span>
-            <el-input-number v-model="chapterMax" :min="0" :controls="false" placeholder="最多" />
-          </div>
+          <label>章节数</label>
+          <el-radio-group v-model="chapterRange" class="range-tags" @change="onFilterChange">
+            <el-radio-button v-for="r in CHAPTER_RANGES" :key="r.value" :value="r.value">{{ r.label }}</el-radio-button>
+          </el-radio-group>
         </div>
 
         <div class="fld">
-          <label>字数范围(万字)</label>
-          <div class="range-row">
-            <el-input-number v-model="wordMinW" :min="0" :controls="false" placeholder="最少" />
-            <span class="tilde">~</span>
-            <el-input-number v-model="wordMaxW" :min="0" :controls="false" placeholder="最多" />
-          </div>
+          <label>字数</label>
+          <el-radio-group v-model="wordRange" class="range-tags" @change="onFilterChange">
+            <el-radio-button v-for="r in WORD_RANGES" :key="r.value" :value="r.value">{{ r.label }}</el-radio-button>
+          </el-radio-group>
           <div class="hint">PDF / 漫画无字数统计,设置字数范围会将其排除</div>
         </div>
 
         <div class="fld">
           <label>封面</label>
-          <el-radio-group v-model="coverFilter">
+          <el-radio-group v-model="coverFilter" @change="onFilterChange">
             <el-radio-button :value="undefined">全部</el-radio-button>
             <el-radio-button :value="true">有封面</el-radio-button>
             <el-radio-button :value="false">无封面</el-radio-button>
@@ -165,7 +161,6 @@
 
       <template #footer>
         <el-button @click="resetFilters">重置</el-button>
-        <el-button type="primary" @click="applyFilters">应用</el-button>
       </template>
     </el-drawer>
   </div>
@@ -198,6 +193,21 @@ const SORTS = [
   { label: '文件大小', value: 'size' },
 ]
 
+// 章节数/字数常用区间快选:value 作标识,min/max 为查询边界(null=开区间)
+// 字数单位为「万字」,传后端时再 ×10000;控制在 4 档,抽屉内一行等宽平铺不换行
+const CHAPTER_RANGES: { label: string; value: string; min: number | null; max: number | null }[] = [
+  { label: '不限', value: '', min: null, max: null },
+  { label: '<100', value: '0-100', min: null, max: 100 },
+  { label: '100-1000', value: '100-1000', min: 100, max: 1000 },
+  { label: '>1000', value: '1000-', min: 1000, max: null },
+]
+const WORD_RANGES: { label: string; value: string; min: number | null; max: number | null }[] = [
+  { label: '不限', value: '', min: null, max: null },
+  { label: '<10万', value: '0-10', min: null, max: 10 },
+  { label: '10-100万', value: '10-100', min: 10, max: 100 },
+  { label: '>100万', value: '100-', min: 100, max: null },
+]
+
 const treeData = ref<any[]>([])
 const treeRef = ref<any>(null)
 const books = ref<BookBrief[]>([])
@@ -210,10 +220,8 @@ const formatFilter = ref<string | undefined>(undefined)
 const keyword = ref('')
 const sort = ref('title')
 const order = ref<'asc' | 'desc'>('asc')
-const chapterMin = ref<number | undefined>(undefined)
-const chapterMax = ref<number | undefined>(undefined)
-const wordMinW = ref<number | undefined>(undefined) // 单位:万字
-const wordMaxW = ref<number | undefined>(undefined)
+const chapterRange = ref('') // 选中的章节区间 value
+const wordRange = ref('') // 选中的字数区间 value(单位:万字)
 const coverFilter = ref<boolean | undefined>(undefined)
 const mobileTreeOpen = ref(false)
 const filterPanel = ref(false)
@@ -231,13 +239,24 @@ function onResize() {
 }
 
 const hasAdvancedFilter = computed(
-  () =>
-    chapterMin.value != null ||
-    chapterMax.value != null ||
-    wordMinW.value != null ||
-    wordMaxW.value != null ||
-    coverFilter.value !== undefined
+  () => chapterRange.value !== '' || wordRange.value !== '' || coverFilter.value !== undefined
 )
+
+// 由区间 value 取 min/max 边界
+function chapterBounds() {
+  return CHAPTER_RANGES.find((r) => r.value === chapterRange.value) ?? CHAPTER_RANGES[0]
+}
+function wordBounds() {
+  return WORD_RANGES.find((r) => r.value === wordRange.value) ?? WORD_RANGES[0]
+}
+// 由 min/max 反查区间 value(URL 恢复用)
+function matchRange(
+  ranges: { value: string; min: number | null; max: number | null }[],
+  min: number | null,
+  max: number | null
+) {
+  return ranges.find((r) => r.min === min && r.max === max)?.value ?? ''
+}
 
 // 顶层节点 book_count 求和 = 全部图书数(和后端 tree 一致)
 const allBooksCount = computed(() =>
@@ -267,10 +286,12 @@ function restoreFromQuery() {
   keyword.value = typeof q.q === 'string' ? q.q : ''
   if (typeof q.sort === 'string') sort.value = q.sort
   if (q.order === 'asc' || q.order === 'desc') order.value = q.order
-  chapterMin.value = q.cmin != null ? Number(q.cmin) : undefined
-  chapterMax.value = q.cmax != null ? Number(q.cmax) : undefined
-  wordMinW.value = q.wmin != null ? Number(q.wmin) : undefined
-  wordMaxW.value = q.wmax != null ? Number(q.wmax) : undefined
+  const cmin = q.cmin != null ? Number(q.cmin) : null
+  const cmax = q.cmax != null ? Number(q.cmax) : null
+  chapterRange.value = matchRange(CHAPTER_RANGES, cmin, cmax)
+  const wmin = q.wmin != null ? Number(q.wmin) : null
+  const wmax = q.wmax != null ? Number(q.wmax) : null
+  wordRange.value = matchRange(WORD_RANGES, wmin, wmax)
   if (q.cover === 'true') coverFilter.value = true
   else if (q.cover === 'false') coverFilter.value = false
 }
@@ -284,10 +305,12 @@ function syncQuery() {
   if (keyword.value.trim()) q.q = keyword.value.trim()
   if (sort.value !== 'title') q.sort = sort.value
   if (order.value !== 'asc') q.order = order.value
-  if (chapterMin.value != null) q.cmin = String(chapterMin.value)
-  if (chapterMax.value != null) q.cmax = String(chapterMax.value)
-  if (wordMinW.value != null) q.wmin = String(wordMinW.value)
-  if (wordMaxW.value != null) q.wmax = String(wordMaxW.value)
+  const cb = chapterBounds()
+  if (cb.min != null) q.cmin = String(cb.min)
+  if (cb.max != null) q.cmax = String(cb.max)
+  const wb = wordBounds()
+  if (wb.min != null) q.wmin = String(wb.min)
+  if (wb.max != null) q.wmax = String(wb.max)
   if (coverFilter.value !== undefined) q.cover = String(coverFilter.value)
   router.replace({ query: q })
 }
@@ -295,6 +318,8 @@ function syncQuery() {
 async function reload() {
   syncQuery()
   const wan = 10000
+  const cb = chapterBounds()
+  const wb = wordBounds()
   const { data } = await booksApi.list({
     page: page.value,
     size: size.value,
@@ -304,10 +329,10 @@ async function reload() {
     q: keyword.value.trim() || undefined,
     sort: sort.value,
     order: order.value,
-    chapter_min: chapterMin.value,
-    chapter_max: chapterMax.value,
-    word_min: wordMinW.value != null ? wordMinW.value * wan : undefined,
-    word_max: wordMaxW.value != null ? wordMaxW.value * wan : undefined,
+    chapter_min: cb.min ?? undefined,
+    chapter_max: cb.max ?? undefined,
+    word_min: wb.min != null ? wb.min * wan : undefined,
+    word_max: wb.max != null ? wb.max * wan : undefined,
     has_cover: coverFilter.value,
   })
   books.value = data.items
@@ -358,17 +383,9 @@ function toggleOrder() {
   reload()
 }
 
-function applyFilters() {
-  filterPanel.value = false
-  page.value = 1
-  reload()
-}
-
 function resetFilters() {
-  chapterMin.value = undefined
-  chapterMax.value = undefined
-  wordMinW.value = undefined
-  wordMaxW.value = undefined
+  chapterRange.value = ''
+  wordRange.value = ''
   coverFilter.value = undefined
   if (isMobile.value) {
     formatFilter.value = undefined
@@ -425,9 +442,17 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 .filter-body { display: flex; flex-direction: column; gap: 20px; }
 .fld { display: flex; flex-direction: column; gap: 8px; }
 .fld > label { font-size: 13px; font-weight: 600; color: #303133; }
-.range-row { display: flex; align-items: center; gap: 8px; }
-.range-row :deep(.el-input-number) { flex: 1; }
-.tilde { color: #909399; }
+/* 区间快选:4 档等宽平铺占满一行,不换行;按钮圆角、文字居中 */
+.range-tags { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%; }
+.range-tags :deep(.el-radio-button) { margin: 0; }
+.range-tags :deep(.el-radio-button__inner) {
+  width: 100%;
+  border-radius: 4px;
+  border-left: 1px solid var(--el-border-color);
+  padding-left: 0;
+  padding-right: 0;
+  text-align: center;
+}
 .sort-row { display: flex; gap: 8px; }
 .hint { font-size: 12px; color: #a0a4ac; }
 

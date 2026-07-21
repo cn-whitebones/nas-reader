@@ -48,8 +48,11 @@ defineProps<{ books: BookBrief[] }>()
   cursor: pointer;
   transition: background 0.2s;
 }
-.book-item:hover {
-  background: var(--el-fill-color-light);
+/* 仅桌面鼠标悬停高亮;触摸屏 tap 后 hover 会被粘住 */
+@media (hover: hover) {
+  .book-item:hover {
+    background: var(--el-fill-color-light);
+  }
 }
 .cover-wrap {
   width: 50px;

@@ -32,7 +32,8 @@ function revoke() {
   }
 }
 
-// 用小 canvas 采样封面四周边缘的平均色(同源 blob,不会污染画布)
+// 用小 canvas 采样封面四周边缘的主导色(众数,同源 blob,不会污染画布)
+// 取众数而非平均:如越女剑封面右/下为白、左/上偏灰,主导色是白,填充白更自然
 function computeEdgeColor(url: string) {
   const img = new Image()
   img.onload = () => {
@@ -46,25 +47,44 @@ function computeEdgeColor(url: string) {
       if (!ctx) return
       ctx.drawImage(img, 0, 0, w, h)
       const data = ctx.getImageData(0, 0, w, h).data
+      // 收集四周边缘像素,按 16 级量化投票求众数桶,再取该桶内平均真实色
+      const edge: number[] = []
+      const push = (x: number, y: number) => edge.push((y * w + x) * 4)
+      for (let x = 0; x < w; x++) {
+        push(x, 0)
+        push(x, h - 1)
+      }
+      for (let y = 0; y < h; y++) {
+        push(0, y)
+        push(w - 1, y)
+      }
+      const votes = new Map<string, number>()
+      const q = (v: number) => (v >> 4) << 4
+      for (const i of edge) {
+        const key = `${q(data[i])},${q(data[i + 1])},${q(data[i + 2])}`
+        votes.set(key, (votes.get(key) || 0) + 1)
+      }
+      let topKey = ''
+      let topCount = 0
+      for (const [key, count] of votes) {
+        if (count > topCount) {
+          topCount = count
+          topKey = key
+        }
+      }
+      // 取众数桶内像素的平均真实色,避免量化误差导致偏色
+      const [qr, qg, qb] = topKey.split(',').map(Number)
       let r = 0
       let g = 0
       let b = 0
       let n = 0
-      const add = (x: number, y: number) => {
-        const i = (y * w + x) * 4
-        r += data[i]
-        g += data[i + 1]
-        b += data[i + 2]
-        n++
-      }
-      // 遍历上下两行、左右两列
-      for (let x = 0; x < w; x++) {
-        add(x, 0)
-        add(x, h - 1)
-      }
-      for (let y = 0; y < h; y++) {
-        add(0, y)
-        add(w - 1, y)
+      for (const i of edge) {
+        if (q(data[i]) === qr && q(data[i + 1]) === qg && q(data[i + 2]) === qb) {
+          r += data[i]
+          g += data[i + 1]
+          b += data[i + 2]
+          n++
+        }
       }
       if (n > 0) bgColor.value = `rgb(${Math.round(r / n)}, ${Math.round(g / n)}, ${Math.round(b / n)})`
     } catch {

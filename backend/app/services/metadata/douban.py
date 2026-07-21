@@ -181,13 +181,18 @@ class DoubanProvider(MetadataProvider):
 
     @classmethod
     def _extract_authors(cls, info) -> list[str]:
-        """从 #info 提取作者/译者:取「作者」label 后紧邻的 <a> 链接文本。"""
+        """从 #info 提取作者:取「作者」label 后紧邻的 <a> 链接文本。
+
+        只取「作者」字段,不收「译者」——豆瓣部分页面会把版次/出版信息
+        错标成「译者」(如碧血剑把「有2013年4月第2版」标为译者链接),
+        混入作者会得到脏数据;而「作者」字段本身是干净的。
+        """
         if info is None:
             return []
         authors: list[str] = []
         for span in info.find_all("span", class_="pl"):
             label = span.get_text(strip=True)
-            if label.startswith("作者") or label.startswith("译者"):
+            if label.startswith("作者"):
                 # 收集该 label 之后、下一个 label 之前的 <a>
                 node = span.next_sibling
                 while node is not None:
