@@ -36,7 +36,7 @@ const wordsText = computed(() => formatWords(props.book.word_count) || '—')
 @media (hover: hover) {
   .book-card:hover { transform: translateY(-3px); }
 }
-.cover { position: relative; aspect-ratio: 3 / 4; background: var(--el-fill-color-light); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.cover { position: relative; aspect-ratio: 3 / 4; background: var(--el-fill-color-light); display: flex; align-items: center; justify-content: center; overflow: hidden; border-bottom: 1px solid var(--el-border-color-lighter); }
 /* 真实封面由 CoverImage 的 blur-fill 双层结构处理:模糊放大背景填满留白、
    原比例前景居中,网格中所有卡片等高且无生硬白边;生成封面自身即 3:4 满铺 */
 .badge { position: absolute; left: 6px; bottom: 6px; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.05em; }

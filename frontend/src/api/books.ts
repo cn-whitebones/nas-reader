@@ -88,6 +88,9 @@ export const booksApi = {
   chapters: (id: string) => http.get<Chapter[]>(`/books/${id}/chapters`),
   content: (id: string, chapter_idx: number) =>
     http.get<ChapterContent>(`/books/${id}/content`, { params: { chapter_idx } }),
+  // 漫画单章图片二进制(blob),用于 objectURL 显示 + 预加载
+  comicImage: (id: string, chapter_idx: number) =>
+    http.get<Blob>(`/books/${id}/comic_image`, { params: { chapter_idx }, responseType: 'blob' }),
   fileUrl: (id: string) => `/api/v1/books/${id}/file`,
   coverUrl: (id: string) => `/api/v1/books/${id}/cover`,
   getProgress: (id: string) => http.get<Progress>(`/books/${id}/progress`),

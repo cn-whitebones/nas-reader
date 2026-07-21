@@ -261,6 +261,34 @@ async def book_content(
     return ChapterContent(idx=ch.idx, title=ch.title, location=ch.location, html=html)
 
 
+@router.get("/{book_id}/comic_image")
+async def book_comic_image(
+    book_id: uuid.UUID,
+    chapter_idx: int = Query(0, ge=0),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """漫画单章图片二进制流(替代 base64 内嵌,支持浏览器缓存与预加载)。"""
+    book = await _get_readable_book(db, user, book_id)
+    if book.format != BookFormat.comic:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="非漫画书籍")
+    result = await db.execute(select(Chapter).where(Chapter.book_id == book_id).order_by(Chapter.idx))
+    chapters = list(result.scalars().all())
+    if not chapters or chapter_idx >= len(chapters):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="章节不存在")
+    ch = chapters[chapter_idx]
+    abs_path = await _abs_path(db, book)
+    if not abs_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
+    from app.services.parsers.comic import get_chapter_image
+
+    raw, mime = get_chapter_image(abs_path, ch.location)
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="图片加载失败")
+    # 图片内容随文件内容固定,可长缓存;book_id+chapter 唯一确定图片
+    return Response(content=raw, media_type=mime, headers={"Cache-Control": "private, max-age=86400"})
+
+
 @router.get("/{book_id}/file")
 async def book_file(
     book_id: uuid.UUID,

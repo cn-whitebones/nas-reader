@@ -60,6 +60,45 @@ def _read_zip_image(file_path: str, image_path: str) -> bytes:
         return b""
 
 
+def get_chapter_image(file_path: str, image_path: str) -> tuple[bytes, str]:
+    """读取压缩包内某张图,做尺寸标准化,返回 (原始字节, MIME)。
+
+    供漫画图片二进制接口与旧 base64 HTML 接口共用。读不到返回 (b"", "")。
+    """
+    raw = _read_zip_image(file_path, image_path)
+    if not raw:
+        return b"", ""
+
+    # 用 Pillow 推断 MIME(比后缀可靠),并对超宽图做限宽
+    img_format = None
+    try:
+        with Image.open(BytesIO(raw)) as img:
+            img_format = img.format
+            max_w = 2560
+            if img.width > max_w:
+                ratio = max_w / img.width
+                new_h = int(img.height * ratio)
+                img = img.resize((max_w, new_h), Image.Resampling.LANCZOS)
+                buf = BytesIO()
+                fmt = "JPEG" if img_format in ("JPEG", None) else "PNG"
+                img.save(buf, format=fmt, quality=85, optimize=True)
+                raw = buf.getvalue()
+                img_format = fmt
+    except Exception:
+        pass
+
+    mime = "image/jpeg"
+    if img_format == "PNG":
+        mime = "image/png"
+    elif img_format in ("GIF", "WEBP", "BMP"):
+        mime = f"image/{img_format.lower()}"
+    else:
+        what = imghdr.what(None, h=raw[:512])
+        if what in ("png", "gif", "webp", "bmp"):
+            mime = f"image/{what}"
+    return raw, mime
+
+
 class ComicParser(BaseParser):
     extensions = tuple(_ARCHIVE_EXTS)
 
@@ -87,42 +126,11 @@ class ComicParser(BaseParser):
     ) -> str:
         """漫画章节 = 单张图片,返回 base64 内嵌 <img> HTML。
 
-        同时做图片尺寸标准化:太大的图适度缩小,避免前端卡死。
+        (保留:兼容旧的统一 content 接口。漫画阅读现优先走 comic_image 二进制接口。)
         """
-        raw = _read_zip_image(file_path, chapter.location)
+        raw, mime = get_chapter_image(file_path, chapter.location)
         if not raw:
             return '<p>图片加载失败</p>'
-
-        # 用 Pillow 推断 MIME(比后缀可靠)
-        img_format = None
-        try:
-            with Image.open(BytesIO(raw)) as img:
-                img_format = img.format
-                # 超宽图:限制最大宽度 2560px,避免移动端溢出
-                max_w = 2560
-                if img.width > max_w:
-                    ratio = max_w / img.width
-                    new_h = int(img.height * ratio)
-                    img = img.resize((max_w, new_h), Image.Resampling.LANCZOS)
-                    buf = BytesIO()
-                    fmt = "JPEG" if img_format in ("JPEG", None) else "PNG"
-                    img.save(buf, format=fmt, quality=85, optimize=True)
-                    raw = buf.getvalue()
-                    img_format = fmt
-        except Exception:
-            pass
-
-        # 推断 MIME
-        mime = "image/jpeg"
-        if img_format == "PNG":
-            mime = "image/png"
-        elif img_format in ("GIF", "WEBP", "BMP"):
-            mime = f"image/{img_format.lower()}"
-        else:
-            # Pillow 读不出就用文件扩展名兜底
-            what = imghdr.what(None, h=raw[:512])
-            if what in ("png", "gif", "webp", "bmp"):
-                mime = f"image/{what}"
 
         import base64
         b64 = base64.b64encode(raw).decode("ascii")

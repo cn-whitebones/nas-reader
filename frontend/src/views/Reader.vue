@@ -65,6 +65,10 @@
             <div v-if="comicImgLoaded && !comicIsDoublePage" class="comic-rotate-btn" @click.stop="toggleComicRotate">
               <el-icon :size="18"><Refresh /></el-icon>
             </div>
+            <!-- 图片未就绪时的加载指示(命中缓存时不出现,秒换) -->
+            <div v-if="!comicImgLoaded" class="comic-loading">
+              <el-icon class="is-loading" :size="28"><Loading /></el-icon>
+            </div>
           </div>
           <!-- 点击翻页区域:旋转时整个层跟着旋转,左右点击逻辑自然对齐视觉,无需改 JS -->
           <div class="tap-zones" :class="{ 'rotate-90': comicRotate90 && !comicIsDoublePage }" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd" @click="onTapZoneClick">
@@ -135,7 +139,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
-import { ArrowLeft, Menu, Setting, Refresh, ZoomIn, ZoomOut } from '@element-plus/icons-vue'
+import { ArrowLeft, Menu, Setting, Refresh, ZoomIn, ZoomOut, Loading } from '@element-plus/icons-vue'
 import { booksApi, type BookDetail, type Chapter } from '@/api/books'
 import { useReaderStore } from '@/stores/reader'
 import { applyTheme, setStatusBarColor, THEME_STATUS_COLOR, type AppTheme } from '@/theme'
@@ -223,29 +227,56 @@ function getComicPrefs() {
   }
 }
 
-// 漫画设置改变时:重切当前页
+// 漫画设置改变时:重切当前页(图源已在缓存,无需重新请求)
 async function reloadCurrentPage() {
   if (!isComic.value) return
-  // 先清空旧状态,触发重新加载
   const wasDouble = comicIsDoublePage.value
-  chapterHtml.value = ''
+  const cur = comicImgSrc.value
   comicIsDoublePage.value = false
   comicImgLoaded.value = false
   comicLeftImage.value = ''
   comicRightImage.value = ''
-  await new Promise(r => setTimeout(r, 50))
-  // 重新拉取当前章
-  const { data } = await booksApi.content(bookId, curChapter.value)
-  chapterHtml.value = data.html
   goLastOnLoad.value = wasDouble && comicSubPage.value === 1
+  // 通过短暂清空 src 再赋回,强制 <img> 重新触发 @load 走一遍切割/旋转判定
+  comicImgSrc.value = ''
+  await new Promise((r) => setTimeout(r, 30))
+  comicImgSrc.value = cur
 }
 
-// 从后端返回的 HTML 中提取 base64 img src
-const comicImgSrc = computed(() => {
-  if (!isComic.value || !chapterHtml.value) return ''
-  const match = chapterHtml.value.match(/src="([^"]+)"/)
-  return match ? match[1] : ''
-})
+// —— 漫画图片:blob objectURL + 内存 LRU 缓存 + 相邻章预加载 ——
+const comicImgSrc = ref('') // 当前显示的漫画图 objectURL
+const comicImgCache = new Map<number, string>() // chapterIdx -> objectURL
+const COMIC_CACHE_MAX = 6
+
+// 取某章图片的 objectURL:命中缓存直接返回,否则请求 blob 并缓存
+async function getComicObjectUrl(idx: number): Promise<string> {
+  const cached = comicImgCache.get(idx)
+  if (cached) {
+    // LRU:命中后移到最后
+    comicImgCache.delete(idx)
+    comicImgCache.set(idx, cached)
+    return cached
+  }
+  const { data } = await booksApi.comicImage(bookId, idx)
+  const url = URL.createObjectURL(data as Blob)
+  comicImgCache.set(idx, url)
+  // 超出上限:逐出最早的(且不是当前章)
+  while (comicImgCache.size > COMIC_CACHE_MAX) {
+    const oldest = comicImgCache.keys().next().value
+    if (oldest === undefined || oldest === curChapter.value) break
+    const u = comicImgCache.get(oldest)
+    if (u) URL.revokeObjectURL(u)
+    comicImgCache.delete(oldest)
+  }
+  return url
+}
+
+// 后台预取相邻章(主要是下一章),失败静默
+function prefetchComic(idx: number) {
+  if (idx < 0 || idx >= chapters.value.length) return
+  if (comicImgCache.has(idx)) return
+  getComicObjectUrl(idx).catch(() => {})
+}
 
 function onComicImgLoad(e: Event) {
   const img = e.target as HTMLImageElement
@@ -354,15 +385,8 @@ function toggleComicRotate() {
 }
 
 // 切换章节时重置加载状态,不清空旋转方向
-watch(curChapter, () => {
-  if (isComic.value) {
-    comicImgLoaded.value = false
-    comicIsDoublePage.value = false
-    comicSubPage.value = 0
-    comicLeftImage.value = ''
-    comicRightImage.value = ''
-  }
-})
+// 漫画的章节切换状态由 loadChapter 统一管理(缓存命中时不重置 loading,避免闪烁),
+// 这里不再重复处理,以免覆盖 loadChapter 设置的状态
 
 const isFirstPage = computed(() => {
   if (book.value?.format === 'pdf') return curPage.value <= 0
@@ -434,6 +458,9 @@ onBeforeUnmount(() => {
   applyTheme(settings.value.theme)
   // 离开阅读页(关闭/刷新)时立即写入最新进度
   commitProgress()
+  // 释放漫画 blob objectURL,避免内存泄漏
+  for (const url of comicImgCache.values()) URL.revokeObjectURL(url)
+  comicImgCache.clear()
 })
 
 // 离开路由前(返回/跳转)先完成进度保存,确保 BookDetail 刷新能拿到新进度
@@ -451,24 +478,28 @@ async function loadChapter(idx: number, goLast = false) {
       htmlReaderRef.value?.prepareChapterTransition('prev', goLast ? 'last' : 'first')
     }
   }
-  // 漫画:先清空 html + 重置双页状态,防止 v-if 切换到单页 <img> 时,
-  // 旧章 html 触发一次 @load 提前消费掉 goLastOnLoad,导致跨章向前翻页落错半页
+  // 漫画:走 blob objectURL(带缓存/预加载),与文本/PDF 的 content() 分流
   if (isComic.value) {
-    chapterHtml.value = ''
+    goLastOnLoad.value = goLast
+    // 命中缓存则不显 loading(直接秒换),未命中才置 loading 态
+    if (!comicImgCache.has(idx)) comicImgLoaded.value = false
+    // 先取到新章 objectURL,再统一切换显示状态:
+    // 避免"先重置 double、comicImgSrc 仍是旧值"导致 @load 读到旧图(跨章/目录跳转 bug)
+    const url = await getComicObjectUrl(idx)
+    curChapter.value = idx
     comicIsDoublePage.value = false
-    comicImgLoaded.value = false
     comicLeftImage.value = ''
     comicRightImage.value = ''
+    comicImgSrc.value = url // 与 double=false 同一 tick,v-else 的 <img> 挂载即拿到新 src
+    saveProgress(chapters.value[idx]?.location || String(idx))
+    // 预取下一章(主阅读方向),来回翻也顺滑
+    prefetchComic(idx + 1)
+    return
   }
   curChapter.value = idx
   const { data } = await booksApi.content(bookId, idx)
-  // 标记:翻到上一章时是否要显示末半页(在 onComicImgLoad 中根据阅读方向落点)
   goLastOnLoad.value = goLast
   chapterHtml.value = data.html
-  // 漫画:一页一章,手动保存进度;文本/PDF 靠 HtmlReader 事件触发
-  if (isComic.value) {
-    saveProgress(chapters.value[idx]?.location || String(idx))
-  }
   // html 变化会触发 HtmlReader 重新分页并按目标页/initialCharOffset 定位
 }
 
@@ -708,6 +739,15 @@ function onVisibilityChange() {
 }
 .comic-page img[src].loaded {
   opacity: 1;
+}
+/* 漫画加载指示:图片未就绪时居中转圈,命中缓存时不出现 */
+.comic-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--el-text-color-secondary);
+  pointer-events: none;
 }
 .theme-dark .comic-page { background: #1a1a1a; }
 .theme-sepia .comic-page { background: #f5ecd9; }
