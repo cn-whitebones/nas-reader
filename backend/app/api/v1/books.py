@@ -28,6 +28,7 @@ from app.schemas.book import (
 )
 from app.services.parsers.registry import get_parser
 from app.services.permission import apply_book_filter, can_read_book, get_readable_book, get_readable_source_map
+from app.services.book_query import apply_keyword_filter, get_order_clauses
 from app.services.scanner.covers import cover_abs_path
 from app.services.scanner.fsutil import safe_join
 
@@ -81,18 +82,7 @@ async def list_books(
         base = base.where(Book.format == format)
     # 关键字模糊匹配:文件名 + 元数据(标题/作者/描述/出版社/标签)
     # 作者/标签为 JSON 数组,序列化为文本后整体 LIKE,个人库量级足够
-    if q and q.strip():
-        like = f"%{q.strip()}%"
-        base = base.where(
-            or_(
-                func.lower(Book.file_name).like(like.lower()),
-                func.lower(BookMetadata.title).like(like.lower()),
-                func.lower(BookMetadata.description).like(like.lower()),
-                func.lower(BookMetadata.publisher).like(like.lower()),
-                func.lower(cast(BookMetadata.authors, String)).like(like.lower()),
-                func.lower(cast(BookMetadata.tags, String)).like(like.lower()),
-            )
-        )
+    base = apply_keyword_filter(base, q)
     # 章节数范围
     if chapter_min is not None:
         base = base.where(Book.chapter_count >= chapter_min)
@@ -110,40 +100,10 @@ async def list_books(
     count_stmt = select(func.count()).select_from(base.order_by(None).subquery())
     total = await db.scalar(count_stmt) or 0
 
-    ordered = base.order_by(*_order_clauses(sort, order))
+    ordered = base.order_by(*get_order_clauses(sort, order))
     result = await db.execute(ordered.offset((page - 1) * size).limit(size))
     items = [BookBrief.from_model(b) for b in result.scalars().all()]
     return Page(items=items, total=total, page=page, size=size)
-
-
-def _order_clauses(sort: str, order: str):
-    """构造排序子句。NULL 值一律排到最后(nulls_last),末尾用稳定次键。"""
-    desc = order == "desc"
-
-    def d(col):
-        return col.desc() if desc else col.asc()
-
-    # 各排序字段对应主键列;字符串键用 collate NOCASE 保证大小写无关
-    if sort == "author":
-        primary = BookMetadata.author_sort
-    elif sort == "words":
-        primary = Book.word_count
-    elif sort == "chapters":
-        primary = Book.chapter_count
-    elif sort == "added":
-        primary = Book.added_at
-    elif sort == "size":
-        primary = Book.file_size
-    elif sort == "shelf_added":
-        # 需和 shelf=my join(ShelfBook) 配套使用;非 my 场景默认走 title
-        primary = ShelfBook.added_at
-    else:  # title
-        primary = BookMetadata.title_sort
-
-    # NULL 排最后:SQLite 支持 NULLS LAST 语法(3.30+)
-    primary_clause = d(primary).nulls_last()
-    # 稳定次键:目录 + 文件名,保证同值顺序确定
-    return [primary_clause, Book.dir_path.asc(), Book.file_name.asc()]
 
 
 @router.get("/tree", response_model=list[TreeNode])
@@ -171,26 +131,9 @@ async def book_tree(
 
 
 async def _detail_response(db: AsyncSession, book: Book, user_id: uuid.UUID) -> BookDetail:
-    md = await db.get(BookMetadata, book.id)
+    # get_readable_book 已经预加载了 book_metadata，直接使用
     prog = await _get_progress(db, user_id, book.id)
-    return BookDetail(
-        id=book.id,
-        source_id=book.source_id,
-        rel_path=book.rel_path,
-        dir_path=book.dir_path,
-        file_name=book.file_name,
-        format=book.format,
-        file_size=book.file_size,
-        status=book.status,
-        chapter_count=book.chapter_count,
-        word_count=book.word_count,
-        has_cover=bool(book.cover_path),
-        double_page=book.double_page,
-        start_right=book.start_right,
-        added_at=book.added_at,
-        metadata=MetadataOut.model_validate(md) if md else None,
-        progress=ProgressOut.model_validate(prog) if prog else None,
-    )
+    return BookDetail.from_model(book, prog)
 
 
 @router.get("/{book_id}", response_model=BookDetail)

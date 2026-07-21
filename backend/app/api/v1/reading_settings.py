@@ -26,7 +26,7 @@ async def get_settings(user: User = Depends(get_current_user), db: AsyncSession 
     return await _get_or_create(db, user.id)
 
 
-@router.put("/reading-settings", response_model=ReadingSettingsOut)
+@router.patch("/reading-settings", response_model=ReadingSettingsOut)
 async def update_settings(
     payload: ReadingSettingsUpdate,
     user: User = Depends(get_current_user),

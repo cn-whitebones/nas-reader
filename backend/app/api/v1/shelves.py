@@ -18,6 +18,7 @@ from app.models.user import User
 from app.schemas.auth import Page
 from app.schemas.book import BookBrief, ShelfBookAdd, ShelfOut
 from app.services.permission import can_read_book
+from app.services.book_query import apply_keyword_filter, get_order_clauses
 from app.services.shelf import get_or_create_default_shelf
 
 router = APIRouter(prefix="/shelves", tags=["shelves"])
@@ -80,42 +81,12 @@ async def my_shelf_books_paged(
     )
     base = apply_book_filter(base, user, source_map)
     # 关键字模糊匹配，与 books.py 一致
-    if q and q.strip():
-        like = f"%{q.strip()}%"
-        from sqlalchemy import String, cast, or_
-
-        base = base.where(
-            or_(
-                func.lower(Book.file_name).like(like.lower()),
-                func.lower(BookMetadata.title).like(like.lower()),
-                func.lower(BookMetadata.description).like(like.lower()),
-                func.lower(BookMetadata.publisher).like(like.lower()),
-                func.lower(cast(BookMetadata.authors, String)).like(like.lower()),
-                func.lower(cast(BookMetadata.tags, String)).like(like.lower()),
-            )
-        )
+    base = apply_keyword_filter(base, q)
     count_stmt = select(func.count()).select_from(base.order_by(None).subquery())
     total = await db.scalar(count_stmt) or 0
 
-    def _d(col):
-        return col.desc() if order == "desc" else col.asc()
-
     # 排序与书库一致:nulls last
-    if sort == "author":
-        primary = _d(BookMetadata.author_sort)
-    elif sort == "words":
-        primary = _d(Book.word_count)
-    elif sort == "chapters":
-        primary = _d(Book.chapter_count)
-    elif sort == "added":
-        primary = _d(Book.added_at)
-    elif sort == "size":
-        primary = _d(Book.file_size)
-    elif sort == "shelf_added":
-        primary = _d(ShelfBook.added_at)
-    else:  # title
-        primary = _d(BookMetadata.title_sort)
-    ordered = base.order_by(primary, Book.dir_path.asc(), Book.file_name.asc())
+    ordered = base.order_by(*get_order_clauses(sort, order))
     result = await db.execute(ordered.offset((page - 1) * size).limit(size))
     items = [BookBrief.from_model(b) for b in result.scalars().all()]
     return Page(items=items, total=total, page=page, size=size)
