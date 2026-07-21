@@ -27,7 +27,7 @@ from app.services.metadata.base import MetadataCandidate, ScrapeStep, ScrapeTrac
 from app.services.metadata.scraper import apply_candidate, search_candidates
 from app.services.settings_store import get_douban_cookie, get_provider_config
 from app.services.sortkey import authors_sort_key, to_sort_key
-from app.services.permission import can_read_book
+from app.services.permission import can_read_book, get_readable_book
 
 router = APIRouter(tags=["scrape"])
 
@@ -158,7 +158,7 @@ async def scrape_book(
     db: AsyncSession = Depends(get_db),
 ):
     """为图书搜索候选。关键词默认取已有标题或文件名(去扩展名)。仅管理员可用。"""
-    book = await _get_readable_book(db, user, book_id)
+    book = await get_readable_book(db, user, book_id)
     keyword = payload.keyword
     if not keyword:
         md = await db.get(BookMetadata, book_id)
@@ -180,13 +180,13 @@ async def apply_metadata(
     db: AsyncSession = Depends(get_db),
 ):
     """把选定候选写入图书元数据(含下载封面)。仅管理员可用。"""
-    await _get_readable_book(db, user, book_id)
+    await get_readable_book(db, user, book_id)
     candidate = MetadataCandidate(**payload.candidate.model_dump())
     md = await apply_candidate(db, book_id, candidate)
     return MetadataOut.model_validate(md)
 
 
-@router.put("/books/{book_id}/metadata", response_model=MetadataOut)
+@router.patch("/books/{book_id}/metadata", response_model=MetadataOut)
 async def update_metadata(
     book_id: uuid.UUID,
     payload: MetadataUpdate,
@@ -194,7 +194,7 @@ async def update_metadata(
     db: AsyncSession = Depends(get_db),
 ):
     """手动编辑/兜底录入元数据。仅管理员可用。"""
-    await _get_readable_book(db, user, book_id)
+    await get_readable_book(db, user, book_id)
     md = await db.get(BookMetadata, book_id)
     if md is None:
         md = BookMetadata(book_id=book_id)
@@ -208,12 +208,3 @@ async def update_metadata(
     await db.commit()
     await db.refresh(md)
     return MetadataOut.model_validate(md)
-
-
-async def _get_readable_book(db: AsyncSession, user: User, book_id: uuid.UUID) -> Book:
-    book = await db.get(Book, book_id)
-    if book is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="图书不存在")
-    if not await can_read_book(db, user, book):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该图书")
-    return book

@@ -80,6 +80,26 @@ class BookBrief(BaseModel):
     title: str | None = None
     authors: list[str] = []
 
+    @classmethod
+    def from_model(cls, book: "Book") -> "BookBrief":
+        """从 ORM Book 模型转换为 BookBrief schema。"""
+        from app.models.book import Book as BookORM
+        md = book.book_metadata
+        return cls(
+            id=book.id,
+            file_name=book.file_name,
+            dir_path=book.dir_path,
+            format=book.format,
+            status=book.status,
+            chapter_count=book.chapter_count,
+            word_count=book.word_count,
+            file_size=book.file_size,
+            has_cover=bool(book.cover_path),
+            cover_version=md.scraped_at.isoformat() if md and md.scraped_at else None,
+            title=md.title if md else None,
+            authors=md.authors if md else [],
+        )
+
 
 class BookDetail(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -99,6 +119,36 @@ class BookDetail(BaseModel):
     added_at: datetime
     metadata: MetadataOut | None = None
     progress: ProgressOut | None = None
+
+    @classmethod
+    def from_model(cls, book: "Book", progress: "ReadingProgress | None" = None) -> "BookDetail":
+        """从 ORM Book 模型转换为 BookDetail schema。
+
+        book_metadata 需要已被预加载（selectinload）。
+        progress 可选，由调用方查询后传入。
+        """
+        from app.models.book import Book as BookORM
+        from app.models.reading import ReadingProgress as ReadingProgressORM
+
+        md = book.book_metadata
+        return cls(
+            id=book.id,
+            source_id=book.source_id,
+            rel_path=book.rel_path,
+            dir_path=book.dir_path,
+            file_name=book.file_name,
+            format=book.format,
+            file_size=book.file_size,
+            status=book.status,
+            chapter_count=book.chapter_count,
+            word_count=book.word_count,
+            has_cover=bool(book.cover_path),
+            double_page=book.double_page,
+            start_right=book.start_right,
+            added_at=book.added_at,
+            metadata=MetadataOut.model_validate(md) if md else None,
+            progress=ProgressOut.model_validate(progress) if progress else None,
+        )
 
 
 # ---------- 目录树 ----------

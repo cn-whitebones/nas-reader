@@ -3,9 +3,10 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 from starlette.responses import FileResponse, Response
 
 from app.api.v1 import api_router
@@ -74,6 +75,28 @@ app.add_middleware(
 
 # 文本资源(html/js/css/json)gzip 压缩,替代原 nginx 的压缩能力
 app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+
+# 全局异常处理:统一错误响应格式,记录未处理异常
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """处理所有未捕获的异常。
+
+    - HTTPException:保留状态码和 detail
+    - 其他异常:记录日志,返回 500 错误,不泄露内部细节给客户端
+    """
+    if isinstance(exc, HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+        )
+    # 未处理异常:记录日志,返回通用错误信息
+    logger.exception("未处理的异常: %s", str(exc))
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "服务器内部错误"},
+    )
+
 
 app.include_router(api_router, prefix=settings.api_prefix)
 

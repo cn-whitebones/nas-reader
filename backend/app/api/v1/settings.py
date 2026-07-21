@@ -59,7 +59,7 @@ async def get_scrape_settings(db: AsyncSession = Depends(get_db)):
     return ScrapeSettingsOut(douban_cookie_set=bool(cookie), douban_cookie_length=len(cookie))
 
 
-@router.put("/scrape", response_model=ScrapeSettingsOut)
+@router.patch("/scrape", response_model=ScrapeSettingsOut)
 async def update_scrape_settings(payload: ScrapeSettingsUpdate, db: AsyncSession = Depends(get_db)):
     """更新豆瓣 Cookie。传空字符串即清除(回退到环境变量)。"""
     await set_setting(db, KEY_DOUBAN_COOKIE, payload.douban_cookie.strip())
@@ -89,16 +89,5 @@ async def get_default_permissions(db: AsyncSession = Depends(get_db)):
 
 @router.put("/default-permissions", response_model=list[PermissionItem])
 async def set_default_permissions(payload: PermissionUpdate, db: AsyncSession = Depends(get_db)):
-    await db.execute(delete(Permission).where(Permission.user_id.is_(None)))
-    for item in payload.permissions:
-        db.add(
-            Permission(
-                user_id=None,
-                source_id=item.source_id,
-                sub_path=item.sub_path,
-                can_read=item.can_read,
-            )
-        )
-    await db.commit()
-    result = await db.execute(select(Permission).where(Permission.user_id.is_(None)))
-    return list(result.scalars().all())
+    from app.services.permission_service import replace_permissions
+    return await replace_permissions(db, None, payload.permissions)

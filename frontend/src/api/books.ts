@@ -94,8 +94,8 @@ export const booksApi = {
   fileUrl: (id: string) => `/api/v1/books/${id}/file`,
   coverUrl: (id: string) => `/api/v1/books/${id}/cover`,
   getProgress: (id: string) => http.get<Progress>(`/books/${id}/progress`),
-  putProgress: (id: string, p: Omit<Progress, 'updated_at'>) =>
-    http.put<Progress>(`/books/${id}/progress`, p),
+  updateProgress: (id: string, p: Omit<Progress, 'updated_at'>) =>
+    http.patch<Progress>(`/books/${id}/progress`, p),
   updateComicSettings: (id: string, settings: BookComicSettingsUpdate) =>
     http.patch<BookDetail>(`/books/${id}/comic_settings`, settings),
 }

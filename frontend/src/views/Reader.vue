@@ -663,7 +663,7 @@ async function commitProgress() {
     percent = ((curChapter.value + pageFrac) / total) * 100
   }
   try {
-    await booksApi.putProgress(bookId, {
+    await booksApi.updateProgress(bookId, {
       location,
       percent: Math.min(Math.max(percent, 0), 100),
       chapter_idx: curChapter.value,

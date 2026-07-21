@@ -5,7 +5,7 @@
 """
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,8 +15,10 @@ from app.db.session import get_db
 from app.models.book import Book, BookStatus
 from app.models.reading import Shelf, ShelfBook
 from app.models.user import User
+from app.schemas.auth import Page
 from app.schemas.book import BookBrief, ShelfBookAdd, ShelfOut
 from app.services.permission import can_read_book
+from app.services.book_query import apply_keyword_filter, get_order_clauses, paginate_query
 from app.services.shelf import get_or_create_default_shelf
 
 router = APIRouter(prefix="/shelves", tags=["shelves"])
@@ -39,6 +41,7 @@ async def my_shelf(user: User = Depends(get_current_user), db: AsyncSession = De
 async def my_shelf_books(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
+    """兼容旧版本:返回全部收藏(不推荐)。新前端用分页端点 /my/books/paged."""
     shelf = await get_or_create_default_shelf(db, user.id)
     result = await db.execute(
         select(Book)
@@ -47,9 +50,44 @@ async def my_shelf_books(
         .options(selectinload(Book.book_metadata))
         .order_by(ShelfBook.added_at.desc())
     )
-    from app.api.v1.books import _brief
 
-    return [_brief(b) for b in result.scalars().all()]
+    return [BookBrief.from_model(b) for b in result.scalars().all()]
+
+
+@router.get("/my/books/paged", response_model=Page[BookBrief])
+async def my_shelf_books_paged(
+    page: int = Query(1, ge=1),
+    size: int = Query(24, ge=1, le=100),
+    q: str | None = Query(None, max_length=200),
+    sort: str = Query("shelf_added", pattern="^(title|author|words|chapters|added|size|shelf_added)$"),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """分页获取收藏列表,支持搜索和排序,与书库接口一致。"""
+    from app.models.book import BookMetadata
+    from app.services.permission import apply_book_filter
+    from app.services.permission import get_readable_source_map
+
+    shelf = await get_or_create_default_shelf(db, user.id)
+    source_map = await get_readable_source_map(db, user)
+    # outerjoin 元数据用于排序/筛选
+    base = (
+        select(Book)
+        .outerjoin(BookMetadata, BookMetadata.book_id == Book.id)
+        .join(ShelfBook, ShelfBook.book_id == Book.id)
+        .where(ShelfBook.shelf_id == shelf.id, Book.status == BookStatus.active)
+        .options(selectinload(Book.book_metadata))
+    )
+    base = apply_book_filter(base, user, source_map)
+    # 关键字模糊匹配，与 books.py 一致
+    base = apply_keyword_filter(base, q)
+
+    # 排序与分页
+    ordered = base.order_by(*get_order_clauses(sort, order))
+    total, rows = await paginate_query(ordered, page, size, db)
+    items = [BookBrief.from_model(b) for b in rows]
+    return Page(items=items, total=total, page=page, size=size)
 
 
 @router.post("/my/books", status_code=status.HTTP_204_NO_CONTENT)
