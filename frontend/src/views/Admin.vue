@@ -7,6 +7,15 @@
           <el-button type="primary" @click="openSourceDialog()">添加文件源</el-button>
           <span class="hint">路径需为容器内挂载路径,如 /data/book1</span>
         </div>
+        <!-- 操作说明:区分「扫描」与「重新解析」 -->
+        <el-alert type="info" :closable="false" show-icon class="ops-note">
+          <template #title>
+            <div class="ops-note-body">
+              <p><b>扫描</b>：增量同步,只处理新增/改动/删除的文件,速度快,日常使用(自动扫描也走此逻辑)。</p>
+              <p><b>重新解析</b>：忽略增量判断,强制重读全部文件重建章节与封面,较慢;仅在解析逻辑更新或章节/封面异常时使用。<b>不会覆盖已刮削的元数据。</b></p>
+            </div>
+          </template>
+        </el-alert>
         <!-- 扫描进度:进行中/刚完成的任务显示进度条 -->
         <div v-if="activeScans.length" class="scan-progress-list">
           <div v-for="item in activeScans" :key="item.sourceId" class="scan-progress">
@@ -522,6 +531,9 @@ onBeforeUnmount(() => {
 .pr-actions { display: flex; gap: 6px; }
 
 /* 扫描进度 */
+.ops-note { margin-bottom: 16px; }
+.ops-note-body { font-weight: normal; }
+.ops-note-body p { margin: 2px 0; line-height: 1.6; font-size: 13px; }
 .scan-progress-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
 .scan-progress {
   background: var(--el-bg-color-overlay);
