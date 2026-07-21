@@ -120,10 +120,17 @@ async function submit() {
 html, body {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
   background-attachment: fixed !important;
+  /* 确保html/body占满整个屏幕，没有边距 */
+  height: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 @media (prefers-color-scheme: dark) {
-  /* 系统深色不影响，我们已经强制浅色 */
+  html, body {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%) !important;
+    background-attachment: fixed !important;
+  }
 }
 </style>
 
@@ -132,9 +139,12 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  /* 保证占满整个视口，内容超出才滚动，去掉不必要的滚动条 */
+  min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  width: 100%;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
+  box-sizing: border-box;
 }
 
 .login-container {
@@ -143,9 +153,8 @@ html, body {
   align-items: center;
   width: 100%;
   max-width: 420px;
-  padding: 20px 20px;
-  padding-top: calc(20px + env(safe-area-inset-top));
-  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  padding: 20px;
+  /* 内容自然分布，保证在可见区域内 */
 }
 
 .login-header {
