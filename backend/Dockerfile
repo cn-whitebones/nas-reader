@@ -47,6 +47,11 @@ USER nasreader
 
 EXPOSE 8000
 
+# 声明需要持久化的卷，NAS 容器创建向导会自动提示映射
+# - /data/db: SQLite 数据库文件
+# - /app/storage/covers: 封面缩略图
+VOLUME ["/data/db", "/app/storage/covers"]
+
 # 健康检查:NAS 容器管理可以显示状态
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
