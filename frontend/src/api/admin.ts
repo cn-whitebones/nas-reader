@@ -105,9 +105,9 @@ export const scrapeApi = {
   search: (keyword: string, provider?: string) =>
     http.get<ScrapeResult>('/scrape/search', { params: { keyword, provider } }),
   scrapeBook: (bookId: string, keyword?: string, provider?: string) =>
-    http.post<ScrapeResult>(`/books/${bookId}/scrape`, { keyword, provider }),
+    http.post<ScrapeResult>(`/scrape/books/${bookId}/scrape`, { keyword, provider }),
   apply: (bookId: string, candidate: Candidate) =>
-    http.post<Metadata>(`/books/${bookId}/metadata/apply`, { candidate }),
+    http.post<Metadata>(`/scrape/books/${bookId}/metadata/apply`, { candidate }),
   updateMetadata: (bookId: string, data: Partial<Metadata>) =>
     http.patch<Metadata>(`/scrape/books/${bookId}/metadata`, data),
   getSettings: () => http.get<ScrapeSettings>('/settings/scrape'),

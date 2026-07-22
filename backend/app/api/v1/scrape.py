@@ -150,7 +150,7 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-@router.post("/books/{book_id}/scrape", response_model=ScrapeResult)
+@router.post("/scrape/books/{book_id}/scrape", response_model=ScrapeResult)
 async def scrape_book(
     book_id: uuid.UUID,
     payload: ScrapeRequest,
@@ -172,7 +172,7 @@ async def scrape_book(
     return _to_result(keyword, candidates, tracer)
 
 
-@router.post("/books/{book_id}/metadata/apply", response_model=MetadataOut)
+@router.post("/scrape/books/{book_id}/metadata/apply", response_model=MetadataOut)
 async def apply_metadata(
     book_id: uuid.UUID,
     payload: ApplyCandidateRequest,
@@ -186,7 +186,7 @@ async def apply_metadata(
     return MetadataOut.model_validate(md)
 
 
-@router.patch("/books/{book_id}/metadata", response_model=MetadataOut)
+@router.patch("/scrape/books/{book_id}/metadata", response_model=MetadataOut)
 async def update_metadata(
     book_id: uuid.UUID,
     payload: MetadataUpdate,
