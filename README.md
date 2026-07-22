@@ -239,6 +239,13 @@ npm run dev   # 默认 http://localhost:5173，已代理 /api 到 :8000
 
 ## 开发进度
 
+### v1.4.8 Dockerfile 优化 / NAS 友好改进
+
+- [x] 容器以非 root 用户 `nasreader` 运行，更安全且适配 NAS 权限模型
+- [x] 修复信号处理：`exec` 让 uvicorn 成为 PID 1，`docker stop` 立即响应不超时
+- [x] 增加 `HEALTHCHECK` 健康检查，NAS 控制面板显示运行状态
+- [x] 安装 `curl` 用于健康检查
+
 ### v1.4.7 路由修复 / 手动编辑刮削
 
 - [x] 修复: 刮削页面手动编辑元数据保存报 405 Method Not Allowed — 路由路径冲突修正
