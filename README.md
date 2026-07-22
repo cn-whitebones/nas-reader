@@ -239,8 +239,11 @@ npm run dev   # 默认 http://localhost:5173，已代理 /api 到 :8000
 
 ## 开发进度
 
-### v1.4.8 Dockerfile 优化 / NAS 友好改进
+### v1.4.9 Dockerfile 进一步优化 / 飞牛 NAS 友好整理
 
+- [x] 启动命令简化为 `/entrypoint.sh`，不暴露复杂脚本给用户
+- [x] 显式 ENV 声明应用需要的环境变量，飞牛/群晖从镜像创建容器时**只显示我们需要的环境变量**，不会带出 Python 基础镜像的 `PATH`/`PYTHON_VERSION` 等一堆无关内容
+- [x] 需要修改的环境变量仅四个：`DATABASE_URL`/`JWT_SECRET`/`DATA_ROOT`/`DEBUG`，干净整洁
 - [x] 容器以非 root 用户 `nasreader` 运行，更安全且适配 NAS 权限模型
 - [x] 修复信号处理：`exec` 让 uvicorn 成为 PID 1，`docker stop` 立即响应不超时
 - [x] 增加 `HEALTHCHECK` 健康检查，NAS 控制面板显示运行状态

@@ -24,12 +24,23 @@ RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir .
 
 COPY backend/ .
 
+# 复制启动脚本
+COPY backend/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # 前端构建产物:由 FastAPI 直接托管(单容器,无需 nginx)
 COPY frontend/dist /app/frontend_dist
 
 # 创建数据目录并授权给非 root 用户
 RUN mkdir -p /app/storage/covers /data/db \
     && chown -R nasreader:nasreader /app /data
+
+# 显式声明应用需要的环境变量（默认值）
+# 这样 NAS 容器创建页面只显示我们需要的这几个，不会带出 Python 基础镜像的一堆无关变量
+ENV DATABASE_URL="sqlite+aiosqlite:////data/db/nasreader.db"
+ENV JWT_SECRET="CHANGE_ME_IN_PRODUCTION"
+ENV DATA_ROOT="/data"
+ENV DEBUG="false"
 
 # 切换到非 root 用户
 USER nasreader
@@ -40,6 +51,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# 启动:执行迁移 → exec 替换 shell 替换自身为 uvicorn (正确传递信号)
-# exec 让 uvicorn 成为 PID 1，docker stop 能立即停止
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# 启动脚本放在单独文件，避免长命令暴露给用户
+# exec 已经在 entrypoint.sh 中处理，uvicorn 成为 PID 1，信号传递正确
+CMD ["/entrypoint.sh"]
