@@ -239,6 +239,13 @@ npm run dev   # 默认 http://localhost:5173，已代理 /api 到 :8000
 
 ## 开发进度
 
+### v1.4.12 退回 root 运行 / 修复 NAS 挂载卷权限问题
+
+- [x] 撤回非 root 用户 `nasreader`，改回以 `root` 运行容器
+- [x] 根因：NAS 挂载的书籍/数据目录属主由宿主机决定，容器内非 root 用户 UID 与宿主机对不上导致无写权限
+- [x] 移除 `groupadd`/`useradd` 创建用户及 `chown` 授权逻辑，Dockerfile 更简洁
+- [x] root 运行可直接读写任意挂载卷，无需 NAS 用户手动 chown
+
 ### v1.4.11 Dockerfile 优化 / 增加书籍目录 VOLUME
 
 - [x] 增加三个 `VOLUME` 声明，飞牛/群晖从镜像创建容器时**自动识别并提示映射**：

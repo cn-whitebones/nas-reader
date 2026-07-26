@@ -15,9 +15,6 @@ WORKDIR /app
 # pip 换清华源
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
-# 创建非 root 用户
-RUN groupadd -r nasreader && useradd -r -g nasreader nasreader
-
 # 先装依赖以利用构建缓存
 COPY backend/pyproject.toml ./
 RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir .
@@ -31,9 +28,8 @@ RUN chmod +x /entrypoint.sh
 # 前端构建产物:由 FastAPI 直接托管(单容器,无需 nginx)
 COPY frontend/dist /app/frontend_dist
 
-# 创建数据目录并授权给非 root 用户
-RUN mkdir -p /app/storage/covers /data/db \
-    && chown -R nasreader:nasreader /app /data
+# 创建数据目录(以 root 运行,无需 chown)
+RUN mkdir -p /app/storage/covers /data/db
 
 # 显式声明应用需要的环境变量（默认值）
 # 这样 NAS 容器创建页面只显示我们需要的这几个，不会带出 Python 基础镜像的一堆无关变量
@@ -42,8 +38,9 @@ ENV JWT_SECRET="CHANGE_ME_IN_PRODUCTION"
 ENV DATA_ROOT="/data"
 ENV DEBUG="false"
 
-# 切换到非 root 用户
-USER nasreader
+# 以 root 运行:NAS 挂载的书籍/数据目录属主由宿主机决定,
+# 非 root 用户 UID 与宿主机目录属主对不上会导致无写权限。
+# root 运行可直接读写任意挂载卷,避免 NAS 用户手动 chown。
 
 EXPOSE 8000
 
